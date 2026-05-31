@@ -1,15 +1,13 @@
 package com.foodstock.auth.domain.port.`in`
 
-data class AuthenticateCommand(
-    val email: String,
-    val password: String
-)
+import com.foodstock.auth.domain.model.User
 
-data class AuthToken(
-    val token: String,
-    val expiresIn: Long
-)
+data class LoginResult(val token: String, val user: User)
 
-interface AuthenticateUseCase {
-    fun authenticate(command: AuthenticateCommand): AuthToken
+interface RegisterUseCase {
+    fun register(name: String, email: String, password: String): User
+}
+
+interface LoginUseCase {
+    fun login(email: String, password: String): LoginResult
 }
