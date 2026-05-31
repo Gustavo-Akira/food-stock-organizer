@@ -1,28 +1,38 @@
 package com.foodstock.auth.domain.service
 
-import com.foodstock.auth.domain.port.`in`.AuthToken
-import com.foodstock.auth.domain.port.`in`.AuthenticateCommand
-import com.foodstock.auth.domain.port.`in`.AuthenticateUseCase
+import com.foodstock.auth.domain.model.User
+import com.foodstock.auth.domain.port.`in`.LoginResult
+import com.foodstock.auth.domain.port.`in`.LoginUseCase
+import com.foodstock.auth.domain.port.`in`.RegisterUseCase
 import com.foodstock.auth.domain.port.out.JwtPort
 import com.foodstock.auth.domain.port.out.PasswordHashPort
 import com.foodstock.auth.domain.port.out.UserRepository
-import org.springframework.stereotype.Service
 
-@Service
 class AuthService(
     private val userRepository: UserRepository,
     private val passwordHashPort: PasswordHashPort,
     private val jwtPort: JwtPort
-) : AuthenticateUseCase {
+) : RegisterUseCase, LoginUseCase {
 
-    override fun authenticate(command: AuthenticateCommand): AuthToken {
-        val user = userRepository.findByEmail(command.email)
+    override fun register(name: String, email: String, password: String): User {
+        if (userRepository.existsByEmail(email)) {
+            throw IllegalArgumentException("Email already in use")
+        }
+        val user = User(
+            name = name,
+            email = email,
+            passwordHash = passwordHashPort.hash(password)
+        )
+        return userRepository.save(user)
+    }
+
+    override fun login(email: String, password: String): LoginResult {
+        val user = userRepository.findByEmail(email)
             ?: throw IllegalArgumentException("Invalid credentials")
-
-        if (!passwordHashPort.matches(command.password, user.passwordHash)) {
+        if (!passwordHashPort.matches(password, user.passwordHash)) {
             throw IllegalArgumentException("Invalid credentials")
         }
-
-        return jwtPort.generateToken(user.id, user.email)
+        val token = jwtPort.generateToken(user)
+        return LoginResult(token = token, user = user)
     }
 }
