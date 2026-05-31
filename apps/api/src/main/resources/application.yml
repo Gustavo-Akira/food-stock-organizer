@@ -1,0 +1,25 @@
+server:
+  port: ${API_PORT:8080}
+
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/foodstock}
+    username: ${DATABASE_USERNAME:foodstock}
+    password: ${DATABASE_PASSWORD:foodstock}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-secret-change-in-production}
+    expiration-ms: 86400000
