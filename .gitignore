@@ -7,7 +7,7 @@ node_modules/
 dist/
 build/
 .next/
-out/
+/out/
 target/
 .gradle/
 *.class
