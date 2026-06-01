@@ -1,12 +1,16 @@
 package com.foodstock.inventory.adapter.`in`
 
 import com.foodstock.inventory.domain.model.Category
+// imported only to support the private toResponse() extension — never returned as HTTP response
 import com.foodstock.inventory.domain.model.InventoryItem
 import com.foodstock.inventory.domain.model.QuantityLevel
 import com.foodstock.inventory.domain.port.`in`.AddItemCommand
 import com.foodstock.inventory.domain.port.`in`.AddItemUseCase
 import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityCommand
 import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityUseCase
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import java.time.LocalDate
@@ -14,10 +18,12 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 data class AddItemRequest(
+    @field:NotBlank @field:Size(max = 255)
     val name: String,
     val category: Category,
     val quantityLevel: QuantityLevel,
     val expiryDate: LocalDate?,
+    @field:Size(max = 1000)
     val notes: String?
 )
 
@@ -45,7 +51,7 @@ class InventoryController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun addItem(
-        @RequestBody request: AddItemRequest,
+        @Valid @RequestBody request: AddItemRequest,
         // TODO: replace with @AuthenticationPrincipal once JWT filter is wired
         @RequestHeader("X-House-Id") houseId: UUID
     ): InventoryItemResponse {
