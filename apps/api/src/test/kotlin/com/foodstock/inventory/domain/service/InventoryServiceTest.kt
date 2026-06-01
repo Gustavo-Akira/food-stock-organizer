@@ -8,6 +8,7 @@ import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityCommand
 import com.foodstock.inventory.domain.port.out.InventoryRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
@@ -59,9 +60,13 @@ class InventoryServiceTest {
 
         val result = service.addItem(command)
 
+        assertEquals(command.houseId, result.houseId)
+        assertEquals("Sabão", result.name)
+        assertEquals(Category.CLEANING, result.category)
+        assertEquals(QuantityLevel.RUNNING_OUT, result.quantityLevel)
         assertEquals(null, result.expiryDate)
         assertEquals(null, result.notes)
-        assertEquals(QuantityLevel.RUNNING_OUT, result.quantityLevel)
+        assertNotNull(result.id)
     }
 
     @Test
@@ -86,6 +91,7 @@ class InventoryServiceTest {
         val captor = argumentCaptor<InventoryItem>()
         verify(inventoryRepository).save(captor.capture())
         assertEquals(QuantityLevel.RUNNING_OUT, captor.firstValue.quantityLevel)
+        assertTrue(captor.firstValue.updatedAt >= existing.updatedAt)
     }
 
     @Test
