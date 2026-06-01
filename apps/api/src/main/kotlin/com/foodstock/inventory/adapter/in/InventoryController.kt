@@ -1,6 +1,7 @@
 package com.foodstock.inventory.adapter.`in`
 
 import com.foodstock.inventory.domain.model.Category
+import com.foodstock.inventory.domain.model.InventoryItem
 import com.foodstock.inventory.domain.model.QuantityLevel
 import com.foodstock.inventory.domain.port.`in`.AddItemCommand
 import com.foodstock.inventory.domain.port.`in`.AddItemUseCase
@@ -62,6 +63,7 @@ class InventoryController(
     }
 
     @PatchMapping("/{itemId}/quantity")
+    @ResponseStatus(HttpStatus.OK)
     fun updateQuantity(
         @PathVariable itemId: UUID,
         @RequestBody request: UpdateQuantityRequest
@@ -72,7 +74,7 @@ class InventoryController(
     }
 }
 
-private fun com.foodstock.inventory.domain.model.InventoryItem.toResponse() = InventoryItemResponse(
+private fun InventoryItem.toResponse() = InventoryItemResponse(
     id = id, houseId = houseId, name = name, category = category,
     quantityLevel = quantityLevel, expiryDate = expiryDate, notes = notes,
     createdAt = createdAt, updatedAt = updatedAt
