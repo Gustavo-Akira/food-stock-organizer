@@ -12,21 +12,21 @@ import java.util.UUID
 @Table(name = "inventory_items")
 class InventoryItemJpaEntity(
     @Id
-    val id: UUID = UUID.randomUUID(),
+    val id: UUID,
 
     @Column(name = "house_id", nullable = false)
-    val houseId: UUID = UUID.randomUUID(),
+    val houseId: UUID,
 
     @Column(nullable = false)
-    val name: String = "",
+    val name: String,
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    val category: Category = Category.OTHER,
+    val category: Category,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "quantity_level", nullable = false)
-    val quantityLevel: QuantityLevel = QuantityLevel.ENOUGH,
+    val quantityLevel: QuantityLevel,
 
     @Column(name = "expiry_date")
     val expiryDate: LocalDate? = null,
@@ -34,10 +34,10 @@ class InventoryItemJpaEntity(
     val notes: String? = null,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now(),
+    val createdAt: LocalDateTime,
 
     @Column(name = "updated_at", nullable = false)
-    val updatedAt: LocalDateTime = LocalDateTime.now()
+    val updatedAt: LocalDateTime
 ) {
     fun toDomain(): InventoryItem = InventoryItem(
         id = id, houseId = houseId, name = name, category = category,
