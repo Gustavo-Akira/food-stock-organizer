@@ -12,7 +12,7 @@ import java.util.UUID
 
 class InventoryService(
     private val inventoryRepository: InventoryRepository,
-    private val clock: Clock = Clock.systemUTC()
+    private val clock: Clock
 ) : AddItemUseCase, UpdateItemQuantityUseCase {
 
     override fun addItem(command: AddItemCommand): InventoryItem {
