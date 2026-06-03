@@ -6,15 +6,17 @@ import com.foodstock.inventory.domain.port.`in`.AddItemUseCase
 import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityCommand
 import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityUseCase
 import com.foodstock.inventory.domain.port.out.InventoryRepository
+import java.time.Clock
 import java.time.LocalDateTime
 import java.util.UUID
 
 class InventoryService(
-    private val inventoryRepository: InventoryRepository
+    private val inventoryRepository: InventoryRepository,
+    private val clock: Clock = Clock.systemUTC()
 ) : AddItemUseCase, UpdateItemQuantityUseCase {
 
     override fun addItem(command: AddItemCommand): InventoryItem {
-        val now = LocalDateTime.now()
+        val now = LocalDateTime.now(clock)
         val item = InventoryItem(
             id = UUID.randomUUID(),
             houseId = command.houseId,
@@ -34,7 +36,7 @@ class InventoryService(
             ?: throw NoSuchElementException("Item not found: ${command.itemId}")
         val updated = item.copy(
             quantityLevel = command.quantityLevel,
-            updatedAt = LocalDateTime.now()
+            updatedAt = LocalDateTime.now(clock)
         )
         return inventoryRepository.save(updated)
     }

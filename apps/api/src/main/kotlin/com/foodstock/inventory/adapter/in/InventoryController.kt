@@ -10,6 +10,7 @@ import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityCommand
 import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityUseCase
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -20,7 +21,9 @@ import java.util.UUID
 data class AddItemRequest(
     @field:NotBlank @field:Size(max = 255)
     val name: String,
+    @field:NotNull
     val category: Category,
+    @field:NotNull
     val quantityLevel: QuantityLevel,
     val expiryDate: LocalDate?,
     @field:Size(max = 1000)
@@ -58,7 +61,7 @@ class InventoryController(
         val item = addItemUseCase.addItem(
             AddItemCommand(
                 houseId = houseId,
-                name = request.name,
+                name = request.name.trim(),
                 category = request.category,
                 quantityLevel = request.quantityLevel,
                 expiryDate = request.expiryDate,
@@ -69,10 +72,9 @@ class InventoryController(
     }
 
     @PatchMapping("/{itemId}/quantity")
-    @ResponseStatus(HttpStatus.OK)
     fun updateQuantity(
         @PathVariable itemId: UUID,
-        @RequestBody request: UpdateQuantityRequest
+        @Valid @RequestBody request: UpdateQuantityRequest
     ): InventoryItemResponse {
         return updateItemQuantityUseCase.updateQuantity(
             UpdateItemQuantityCommand(itemId = itemId, quantityLevel = request.quantityLevel)

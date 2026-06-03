@@ -8,7 +8,6 @@ import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityCommand
 import com.foodstock.inventory.domain.port.out.InventoryRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
@@ -18,19 +17,24 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 @ExtendWith(MockitoExtension::class)
 class InventoryServiceTest {
 
     private val inventoryRepository: InventoryRepository = mock()
-    private val service = InventoryService(inventoryRepository)
+    private val fixedClock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)
+    private val service = InventoryService(inventoryRepository, fixedClock)
 
     @Test
     fun `addItem saves item with generated id and timestamps`() {
         val houseId = UUID.randomUUID()
+        val expectedNow = LocalDateTime.now(fixedClock)
         val command = AddItemCommand(
             houseId = houseId, name = "Arroz", category = Category.FOOD,
             quantityLevel = QuantityLevel.PLENTY, expiryDate = LocalDate.of(2026, 12, 31), notes = null
@@ -45,9 +49,8 @@ class InventoryServiceTest {
         assertEquals(QuantityLevel.PLENTY, result.quantityLevel)
         assertEquals(LocalDate.of(2026, 12, 31), result.expiryDate)
         assertNotNull(result.id)
-        assertNotNull(result.createdAt)
-        assertNotNull(result.updatedAt)
-        assertEquals(result.createdAt, result.updatedAt)
+        assertEquals(expectedNow, result.createdAt)
+        assertEquals(expectedNow, result.updatedAt)
     }
 
     @Test
@@ -72,11 +75,13 @@ class InventoryServiceTest {
     @Test
     fun `updateQuantity updates quantityLevel on existing item`() {
         val itemId = UUID.randomUUID()
+        val pastInstant = Instant.parse("2025-01-01T00:00:00Z")
         val existing = InventoryItem(
             id = itemId, houseId = UUID.randomUUID(), name = "Leite",
             category = Category.FOOD, quantityLevel = QuantityLevel.PLENTY,
             expiryDate = null, notes = null,
-            createdAt = LocalDateTime.now(), updatedAt = LocalDateTime.now()
+            createdAt = LocalDateTime.ofInstant(pastInstant, ZoneOffset.UTC),
+            updatedAt = LocalDateTime.ofInstant(pastInstant, ZoneOffset.UTC)
         )
         whenever(inventoryRepository.findById(itemId)).thenReturn(existing)
         whenever(inventoryRepository.save(any())).thenAnswer { it.arguments[0] as InventoryItem }
@@ -85,13 +90,14 @@ class InventoryServiceTest {
             UpdateItemQuantityCommand(itemId = itemId, quantityLevel = QuantityLevel.RUNNING_OUT)
         )
 
+        val expectedUpdatedAt = LocalDateTime.now(fixedClock)
         assertEquals(QuantityLevel.RUNNING_OUT, result.quantityLevel)
         assertEquals(itemId, result.id)
 
         val captor = argumentCaptor<InventoryItem>()
         verify(inventoryRepository).save(captor.capture())
         assertEquals(QuantityLevel.RUNNING_OUT, captor.firstValue.quantityLevel)
-        assertTrue(captor.firstValue.updatedAt >= existing.updatedAt)
+        assertEquals(expectedUpdatedAt, captor.firstValue.updatedAt)
     }
 
     @Test
