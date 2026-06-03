@@ -30,7 +30,10 @@ data class AddItemRequest(
     val notes: String?
 )
 
-data class UpdateQuantityRequest(val quantityLevel: QuantityLevel)
+data class UpdateQuantityRequest(
+    @field:NotNull
+    val quantityLevel: QuantityLevel
+)
 
 data class InventoryItemResponse(
     val id: UUID,
@@ -55,7 +58,8 @@ class InventoryController(
     @ResponseStatus(HttpStatus.CREATED)
     fun addItem(
         @Valid @RequestBody request: AddItemRequest,
-        // TODO: replace with @AuthenticationPrincipal once JWT filter is wired
+        // TODO: replace with houseId extracted from JWT claims once @AuthenticationPrincipal is wired;
+        //  authentication is enforced (SecurityConfig.anyRequest().authenticated()) but ownership is not yet verified
         @RequestHeader("X-House-Id") houseId: UUID
     ): InventoryItemResponse {
         val item = addItemUseCase.addItem(

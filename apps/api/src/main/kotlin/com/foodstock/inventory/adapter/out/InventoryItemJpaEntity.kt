@@ -34,10 +34,10 @@ class InventoryItemJpaEntity(
     val notes: String? = null,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now(),
+    val createdAt: LocalDateTime,
 
     @Column(name = "updated_at", nullable = false)
-    val updatedAt: LocalDateTime = LocalDateTime.now()
+    val updatedAt: LocalDateTime
 ) {
     fun toDomain(): InventoryItem = InventoryItem(
         id = id, houseId = houseId, name = name, category = category,
