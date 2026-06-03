@@ -98,6 +98,7 @@ class InventoryServiceTest {
         verify(inventoryRepository).save(captor.capture())
         assertEquals(QuantityLevel.RUNNING_OUT, captor.firstValue.quantityLevel)
         assertEquals(expectedUpdatedAt, captor.firstValue.updatedAt)
+        assertEquals(existing.createdAt, captor.firstValue.createdAt)
     }
 
     @Test
