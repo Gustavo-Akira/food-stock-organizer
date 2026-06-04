@@ -6,6 +6,7 @@ plugins {
     kotlin("jvm") version "1.9.24"
     kotlin("plugin.spring") version "1.9.24"
     kotlin("plugin.jpa") version "1.9.24"
+    jacoco
 }
 
 group = "com.foodstock"
@@ -46,4 +47,32 @@ tasks.withType<KotlinCompile> {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+    }
+}
+
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
+}
+
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.jacocoTestReport)
+    violationRules {
+        rule {
+            // Overall project coverage threshold — kept at 0% intentionally.
+            // The 80% enforcement is on diff/patch coverage in CI (see .github/workflows/ci.yml).
+            // Raise this threshold gradually as the codebase matures.
+            limit {
+                minimum = "0.00".toBigDecimal()
+            }
+        }
+    }
 }
