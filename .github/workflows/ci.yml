@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-coverage:
+    name: Test & Coverage Gate
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Required to post/update the coverage comment on PRs.
+      pull-requests: write
+      # Required to read the repository contents.
+      contents: read
+
+    defaults:
+      run:
+        working-directory: apps/api
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Full history is required so the diff-coverage action can compute
+          # which lines changed relative to the base branch.
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: gradle
+
+      - name: Grant execute permission for Gradle wrapper
+        run: chmod +x gradlew
+
+      - name: Run tests and generate JaCoCo XML report
+        run: ./gradlew test jacocoTestReport --no-daemon
+
+      # ------------------------------------------------------------------ #
+      # Diff / patch coverage gate                                          #
+      # Only lines touched in this PR/push need 80% coverage.              #
+      # ------------------------------------------------------------------ #
+      - name: Enforce 80% diff coverage with JaCoCo report
+        uses: madrapps/jacoco-report@v1.7.1
+        with:
+          paths: ${{ github.workspace }}/apps/api/build/reports/jacoco/test/jacocoTestReport.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Fail the check when the coverage of modified lines drops below 80%.
+          min-coverage-changed-files: 80
+          # Do not fail on overall project coverage — the project is early-stage.
+          min-coverage-overall: 0
+          title: "Coverage Report"
+          update-comment: true
+          pass-emoji: ":white_check_mark:"
+          fail-emoji: ":x:"
+          debug-mode: false
