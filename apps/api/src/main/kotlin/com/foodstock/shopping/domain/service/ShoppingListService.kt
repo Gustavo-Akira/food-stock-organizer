@@ -7,18 +7,18 @@ import com.foodstock.shopping.domain.port.`in`.GenerateShoppingListCommand
 import com.foodstock.shopping.domain.port.`in`.GenerateShoppingListUseCase
 import com.foodstock.shopping.domain.port.out.RunningOutItemsQueryPort
 import com.foodstock.shopping.domain.port.out.ShoppingListRepository
-import org.springframework.stereotype.Service
+import java.time.Clock
 import java.time.LocalDateTime
 import java.util.UUID
 
-@Service
 class ShoppingListService(
     private val shoppingListRepository: ShoppingListRepository,
-    private val runningOutItemsQueryPort: RunningOutItemsQueryPort
+    private val runningOutItemsQueryPort: RunningOutItemsQueryPort,
+    private val clock: Clock
 ) : GenerateShoppingListUseCase {
 
     override fun generateFromRunningOutItems(command: GenerateShoppingListCommand): ShoppingList {
-        val now = LocalDateTime.now()
+        val now = LocalDateTime.now(clock)
         val list = ShoppingList(
             id = UUID.randomUUID(),
             houseId = command.houseId,

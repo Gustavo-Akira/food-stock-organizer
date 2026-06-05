@@ -67,11 +67,10 @@ tasks.jacocoTestCoverageVerification {
     dependsOn(tasks.jacocoTestReport)
     violationRules {
         rule {
-            // Overall project coverage threshold — kept at 0% intentionally.
-            // The 80% enforcement is on diff/patch coverage in CI (see .github/workflows/ci.yml).
-            // Raise this threshold gradually as the codebase matures.
+            // Overall project coverage threshold — enforced at 80%.
+            // The 80% enforcement is also applied on diff/patch coverage in CI (see .github/workflows/ci.yml).
             limit {
-                minimum = "0.00".toBigDecimal()
+                minimum = "0.80".toBigDecimal()
             }
         }
     }
