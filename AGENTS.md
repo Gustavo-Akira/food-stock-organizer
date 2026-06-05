@@ -1,0 +1,32 @@
+# Repository Guidelines
+
+## Project Structure & Module Organization
+
+This repository is an npm workspace monorepo with three apps and one shared package. `apps/api` contains the Kotlin/Spring Boot backend, organized by bounded context under `src/main/kotlin/com/foodstock`, with tests in `src/test/kotlin` and Flyway migrations in `src/main/resources/db/migration`. `apps/web` is the Vite React web client; app wiring lives in `src/app`, pages in `src/pages`, and feature code in `src/features`. `apps/mobile` is the Expo React Native client using Expo Router under `src/app`, screens under `src/screens`, and feature code under `src/features`. `packages/shared` exports shared TypeScript types, validators, and API client helpers.
+
+## Build, Test, and Development Commands
+
+- `npm run dev`: runs workspace development tasks through Turbo.
+- `npm run build`: builds all packages/apps that define `build`.
+- `npm run lint`: runs workspace lint tasks.
+- `npm run test`: runs workspace test tasks where defined.
+- `npm --workspace @food-stock/web run dev`: starts the web Vite dev server.
+- `npm --workspace @food-stock/mobile run start`: starts Expo.
+- `cd apps/api && .\gradlew test`: runs backend JUnit tests and generates JaCoCo reports.
+- `docker compose -f infra/docker-compose.yml up`: starts local infrastructure when needed.
+
+## Coding Style & Naming Conventions
+
+Use TypeScript for web, mobile, and shared packages. Prefer React components in `PascalCase`, hooks named `useSomething`, and feature modules grouped by domain. Keep shared schemas and validators in `packages/shared/src` so both clients can reuse them. Kotlin code follows package-per-domain structure with `adapter`, `domain`, `port`, and `config` layers; keep controller, persistence, and domain service responsibilities separated.
+
+## Testing Guidelines
+
+Backend tests use JUnit Platform, Spring Boot Test, Mockito Kotlin, and JaCoCo. Name Kotlin tests after the unit under test, for example `InventoryServiceTest`. Add or update tests when changing domain services, ports, controllers, migrations, or security behavior. JaCoCo HTML/XML reports are produced after `gradlew test`; CI expects strong diff coverage even though the aggregate local threshold is currently set to 0%.
+
+## Commit & Pull Request Guidelines
+
+Recent history follows Conventional Commits: `feat(ci): ...`, `fix(inventory): ...`, and `chore(ci): ...`. Use a concise scope when useful, such as `inventory`, `shopping`, `api`, `web`, or `ci`. Pull requests should describe the change, list verification commands, link related issues, and include screenshots or screen recordings for visible web/mobile UI changes.
+
+## Security & Configuration Tips
+
+Do not commit secrets, tokens, or local database credentials. Keep API configuration in Spring `application.yml` or environment variables, and prefer Docker Compose for local services instead of hard-coded connection details.
