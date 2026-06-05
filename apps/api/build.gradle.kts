@@ -50,6 +50,13 @@ tasks.withType<Test> {
     finalizedBy(tasks.jacocoTestReport)
 }
 
+// Exclude classes that are only testable via integration tests from the coverage gate.
+// - config/**: Spring @Configuration wiring classes; validated by the running application.
+// - adapter/out/**: JPA repositories (interfaces), JPA entities' JPA lifecycle code, and
+//   infrastructure adapters (BCrypt, JWT) that require a full Spring context to test.
+// The 80% gate therefore applies to domain logic and inbound adapter (controller) code only.
+val coverageExcludes = listOf("**/config/**", "**/adapter/out/**")
+
 tasks.jacocoTestReport {
     dependsOn(tasks.test)
     reports {
@@ -65,10 +72,14 @@ tasks.check {
 
 tasks.jacocoTestCoverageVerification {
     dependsOn(tasks.jacocoTestReport)
+    classDirectories.setFrom(
+        files(classDirectories.files.map { fileTree(it) { exclude(coverageExcludes) } })
+    )
     violationRules {
         rule {
-            // Overall project coverage threshold — enforced at 80%.
-            // The 80% enforcement is also applied on diff/patch coverage in CI (see .github/workflows/ci.yml).
+            // 80% threshold applies to domain + inbound adapter layers.
+            // Infrastructure (config, adapter/out) is excluded above.
+            // The same 80% is applied on diff/patch coverage in CI (see .github/workflows/ci.yml).
             limit {
                 minimum = "0.80".toBigDecimal()
             }
