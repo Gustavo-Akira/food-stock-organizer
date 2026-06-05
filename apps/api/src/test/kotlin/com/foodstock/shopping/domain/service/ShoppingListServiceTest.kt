@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import java.time.Clock
@@ -47,7 +48,7 @@ class ShoppingListServiceTest {
         val result = service.generateFromRunningOutItems(command)
 
         verify(shoppingListRepository).save(any())
-        verify(shoppingListRepository, org.mockito.kotlin.times(2)).saveItem(any())
+        verify(shoppingListRepository, times(2)).saveItem(any())
 
         assertEquals(houseId, result.houseId)
         assertEquals("Weekly Shop", result.name)

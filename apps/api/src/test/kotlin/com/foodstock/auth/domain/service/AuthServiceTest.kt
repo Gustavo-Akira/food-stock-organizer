@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.junit.jupiter.MockitoExtension
+import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
@@ -25,7 +26,7 @@ class AuthServiceTest {
     fun `register saves user with hashed password`() {
         whenever(userRepository.existsByEmail("alice@example.com")).thenReturn(false)
         whenever(passwordHashPort.hash("secret")).thenReturn("hashed")
-        whenever(userRepository.save(org.mockito.kotlin.any())).thenAnswer { it.arguments[0] as User }
+        whenever(userRepository.save(any())).thenAnswer { it.arguments[0] as User }
 
         val result = service.register(name = "Alice", email = "alice@example.com", password = "secret")
 
