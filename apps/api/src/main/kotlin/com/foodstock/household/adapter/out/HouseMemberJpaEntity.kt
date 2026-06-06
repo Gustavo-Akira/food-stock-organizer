@@ -28,7 +28,7 @@ class HouseMemberJpaEntity(
     val status: MemberStatus = MemberStatus.PENDING,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now()
+    val createdAt: LocalDateTime
 ) {
     fun toDomain(): HouseMember = HouseMember(
         id = id, houseId = houseId, userId = userId,

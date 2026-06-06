@@ -28,7 +28,7 @@ class ShoppingListItemJpaEntity(
     val checked: Boolean = false,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now()
+    val createdAt: LocalDateTime
 ) {
     fun toDomain(): ShoppingListItem = ShoppingListItem(
         id = id, shoppingListId = shoppingListId, inventoryItemId = inventoryItemId,
