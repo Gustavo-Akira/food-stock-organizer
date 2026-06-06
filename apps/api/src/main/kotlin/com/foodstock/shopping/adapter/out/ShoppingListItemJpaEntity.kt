@@ -2,7 +2,6 @@ package com.foodstock.shopping.adapter.out
 
 import com.foodstock.shopping.domain.model.ShoppingListItem
 import jakarta.persistence.*
-import org.springframework.data.jpa.repository.JpaRepository
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -41,8 +40,4 @@ class ShoppingListItemJpaEntity(
             name = item.name, quantity = item.quantity, checked = item.checked, createdAt = item.createdAt
         )
     }
-}
-
-interface ShoppingListItemJpaRepositoryDelegate : JpaRepository<ShoppingListItemJpaEntity, UUID> {
-    fun findAllByShoppingListId(shoppingListId: UUID): List<ShoppingListItemJpaEntity>
 }

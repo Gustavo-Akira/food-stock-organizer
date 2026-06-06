@@ -2,6 +2,7 @@ package com.foodstock.shopping.adapter.`in`
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.foodstock.shopping.adapter.`in`.dto.GenerateShoppingListRequest
+import com.foodstock.shopping.adapter.`in`.dto.ShoppingListResponse
 import com.foodstock.shopping.domain.model.ShoppingList
 import com.foodstock.shopping.domain.model.ShoppingListStatus
 import com.foodstock.shopping.domain.port.`in`.GenerateShoppingListUseCase
@@ -49,7 +50,7 @@ class ShoppingListControllerTest {
             )
         )
 
-        mockMvc.post("/api/v1/shopping-lists/generate") {
+        val result = mockMvc.post("/api/v1/shopping-lists/generate") {
             contentType = MediaType.APPLICATION_JSON
             header("X-User-Id", userId.toString())
             content = objectMapper.writeValueAsString(
@@ -63,6 +64,11 @@ class ShoppingListControllerTest {
                 jsonPath("$.name") { value("Lista semanal") }
                 jsonPath("$.status") { value("OPEN") }
             }
+            .andReturn()
+
+        val response = objectMapper.readValue(result.response.contentAsString, ShoppingListResponse::class.java)
+        assert(response.id == listId)
+        assert(response.name == "Lista semanal")
     }
 
     @Test
