@@ -1,5 +1,6 @@
 package com.foodstock.inventory.domain.service
 
+import com.foodstock.inventory.domain.exception.ItemNotFoundException
 import com.foodstock.inventory.domain.model.InventoryItem
 import com.foodstock.inventory.domain.port.`in`.AddItemCommand
 import com.foodstock.inventory.domain.port.`in`.AddItemUseCase
@@ -33,7 +34,7 @@ class InventoryService(
 
     override fun updateQuantity(command: UpdateItemQuantityCommand): InventoryItem {
         val item = inventoryRepository.findById(command.itemId)
-            ?: throw NoSuchElementException("Item not found: ${command.itemId}")
+            ?: throw ItemNotFoundException(command.itemId)
         val updated = item.copy(
             quantityLevel = command.quantityLevel,
             updatedAt = LocalDateTime.now(clock)
