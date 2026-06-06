@@ -26,10 +26,10 @@ class ShoppingListJpaEntity(
     val createdBy: UUID = UUID.randomUUID(),
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now(),
+    val createdAt: LocalDateTime,
 
     @Column(name = "updated_at", nullable = false)
-    val updatedAt: LocalDateTime = LocalDateTime.now()
+    val updatedAt: LocalDateTime
 ) {
     fun toDomain(): ShoppingList = ShoppingList(
         id = id, houseId = houseId, name = name, status = status,
