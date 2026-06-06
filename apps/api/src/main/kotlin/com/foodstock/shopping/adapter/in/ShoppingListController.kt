@@ -1,7 +1,8 @@
 package com.foodstock.shopping.adapter.`in`
 
 import com.foodstock.shopping.adapter.`in`.dto.GenerateShoppingListRequest
-import com.foodstock.shopping.domain.model.ShoppingList
+import com.foodstock.shopping.adapter.`in`.dto.ShoppingListResponse
+import com.foodstock.shopping.adapter.`in`.dto.toResponse
 import com.foodstock.shopping.domain.port.`in`.GenerateShoppingListCommand
 import com.foodstock.shopping.domain.port.`in`.GenerateShoppingListUseCase
 import org.springframework.http.HttpStatus
@@ -19,13 +20,13 @@ class ShoppingListController(
     fun generateList(
         @RequestBody request: GenerateShoppingListRequest,
         @RequestHeader("X-User-Id") userId: UUID
-    ): ShoppingList {
+    ): ShoppingListResponse {
         return generateShoppingListUseCase.generateFromRunningOutItems(
             GenerateShoppingListCommand(
                 houseId = request.houseId,
                 createdBy = userId,
                 listName = request.listName
             )
-        )
+        ).toResponse()
     }
 }
