@@ -24,6 +24,4 @@ class HouseJpaRepository(
     override fun findAllByOwnerId(ownerId: UUID): List<House> =
         delegate.findAllByOwnerId(ownerId).map { it.toDomain() }
 
-    override fun deleteById(id: UUID) =
-        delegate.deleteById(id)
 }

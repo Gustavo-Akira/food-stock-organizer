@@ -7,5 +7,4 @@ interface HouseRepository {
     fun save(house: House): House
     fun findById(id: UUID): House?
     fun findAllByOwnerId(ownerId: UUID): List<House>
-    fun deleteById(id: UUID)
 }
