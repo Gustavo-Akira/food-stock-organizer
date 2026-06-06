@@ -1,5 +1,7 @@
 package com.foodstock.household.adapter.`in`
 
+import com.foodstock.household.adapter.`in`.dto.CreateHouseRequest
+import com.foodstock.household.adapter.`in`.dto.InviteMemberRequest
 import com.foodstock.household.domain.model.House
 import com.foodstock.household.domain.model.HouseMember
 import com.foodstock.household.domain.port.`in`.CreateHouseCommand
@@ -9,9 +11,6 @@ import com.foodstock.household.domain.port.`in`.InviteMemberUseCase
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import java.util.UUID
-
-data class CreateHouseRequest(val name: String)
-data class InviteMemberRequest(val userId: UUID)
 
 @RestController
 @RequestMapping("/api/v1/houses")

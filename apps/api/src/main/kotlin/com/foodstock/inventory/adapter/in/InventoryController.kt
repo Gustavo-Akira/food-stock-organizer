@@ -1,51 +1,24 @@
 package com.foodstock.inventory.adapter.`in`
 
-import com.foodstock.inventory.domain.model.Category
-// imported only to support the private toResponse() extension — never returned as HTTP response
-import com.foodstock.inventory.domain.model.InventoryItem
-import com.foodstock.inventory.domain.model.QuantityLevel
+import com.foodstock.inventory.adapter.`in`.dto.AddItemRequest
+import com.foodstock.inventory.adapter.`in`.dto.InventoryItemResponse
+import com.foodstock.inventory.adapter.`in`.dto.UpdateQuantityRequest
+import com.foodstock.inventory.adapter.`in`.dto.toResponse
 import com.foodstock.inventory.domain.port.`in`.AddItemCommand
 import com.foodstock.inventory.domain.port.`in`.AddItemUseCase
 import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityCommand
 import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityUseCase
 import jakarta.validation.Valid
-import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.NotNull
-import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
-import org.springframework.web.bind.annotation.*
-import java.time.LocalDate
-import java.time.LocalDateTime
+import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestHeader
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.ResponseStatus
+import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
-
-data class AddItemRequest(
-    @field:NotBlank @field:Size(max = 255)
-    val name: String,
-    @field:NotNull
-    val category: Category,
-    @field:NotNull
-    val quantityLevel: QuantityLevel,
-    val expiryDate: LocalDate?,
-    @field:Size(max = 1000)
-    val notes: String?
-)
-
-data class UpdateQuantityRequest(
-    @field:NotNull
-    val quantityLevel: QuantityLevel
-)
-
-data class InventoryItemResponse(
-    val id: UUID,
-    val houseId: UUID,
-    val name: String,
-    val category: Category,
-    val quantityLevel: QuantityLevel,
-    val expiryDate: LocalDate?,
-    val notes: String?,
-    val createdAt: LocalDateTime,
-    val updatedAt: LocalDateTime
-)
 
 @RestController
 @RequestMapping("/api/v1/inventory")
@@ -85,9 +58,3 @@ class InventoryController(
         ).toResponse()
     }
 }
-
-private fun InventoryItem.toResponse() = InventoryItemResponse(
-    id = id, houseId = houseId, name = name, category = category,
-    quantityLevel = quantityLevel, expiryDate = expiryDate, notes = notes,
-    createdAt = createdAt, updatedAt = updatedAt
-)
