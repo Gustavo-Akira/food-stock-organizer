@@ -1,5 +1,8 @@
 package com.foodstock.household.domain.service
 
+import com.foodstock.household.domain.exception.AlreadyMemberException
+import com.foodstock.household.domain.exception.HouseNotFoundException
+import com.foodstock.household.domain.exception.UnauthorizedMemberOperationException
 import com.foodstock.household.domain.model.House
 import com.foodstock.household.domain.model.HouseMember
 import com.foodstock.household.domain.model.MemberRole
@@ -95,7 +98,7 @@ class HouseServiceTest {
     }
 
     @Test
-    fun `inviteMember throws NoSuchElementException when house not found`() {
+    fun `inviteMember throws HouseNotFoundException when house not found`() {
         val command = InviteMemberCommand(
             houseId = UUID.randomUUID(),
             invitedUserId = UUID.randomUUID(),
@@ -103,11 +106,11 @@ class HouseServiceTest {
         )
         whenever(houseRepository.findById(command.houseId)).thenReturn(null)
 
-        assertThrows<NoSuchElementException> { service.inviteMember(command) }
+        assertThrows<HouseNotFoundException> { service.inviteMember(command) }
     }
 
     @Test
-    fun `inviteMember throws IllegalArgumentException when caller is not the owner`() {
+    fun `inviteMember throws UnauthorizedMemberOperationException when caller is not the owner`() {
         val houseId = UUID.randomUUID()
         val ownerId = UUID.randomUUID()
         val house = House(
@@ -119,14 +122,14 @@ class HouseServiceTest {
         val command = InviteMemberCommand(
             houseId = houseId,
             invitedUserId = UUID.randomUUID(),
-            invitedByUserId = UUID.randomUUID() // different from ownerId
+            invitedByUserId = UUID.randomUUID()
         )
 
-        assertThrows<IllegalArgumentException> { service.inviteMember(command) }
+        assertThrows<UnauthorizedMemberOperationException> { service.inviteMember(command) }
     }
 
     @Test
-    fun `inviteMember throws IllegalArgumentException when user is already a member`() {
+    fun `inviteMember throws AlreadyMemberException when user is already a member`() {
         val ownerId = UUID.randomUUID()
         val invitedUserId = UUID.randomUUID()
         val houseId = UUID.randomUUID()
@@ -145,6 +148,6 @@ class HouseServiceTest {
             houseId = houseId, invitedUserId = invitedUserId, invitedByUserId = ownerId
         )
 
-        assertThrows<IllegalArgumentException> { service.inviteMember(command) }
+        assertThrows<AlreadyMemberException> { service.inviteMember(command) }
     }
 }
