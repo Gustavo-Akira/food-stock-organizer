@@ -10,16 +10,18 @@ import com.foodstock.household.domain.port.`in`.InviteMemberCommand
 import com.foodstock.household.domain.port.`in`.InviteMemberUseCase
 import com.foodstock.household.domain.port.out.HouseMemberRepository
 import com.foodstock.household.domain.port.out.HouseRepository
+import java.time.Clock
 import java.time.LocalDateTime
 import java.util.UUID
 
 class HouseService(
     private val houseRepository: HouseRepository,
-    private val houseMemberRepository: HouseMemberRepository
+    private val houseMemberRepository: HouseMemberRepository,
+    private val clock: Clock
 ) : CreateHouseUseCase, InviteMemberUseCase {
 
     override fun createHouse(command: CreateHouseCommand): House {
-        val now = LocalDateTime.now()
+        val now = LocalDateTime.now(clock)
         val house = House(
             id = UUID.randomUUID(),
             name = command.name,
@@ -50,6 +52,7 @@ class HouseService(
         if (houseMemberRepository.findByHouseIdAndUserId(command.houseId, command.invitedUserId) != null) {
             throw IllegalArgumentException("User is already a member of this house")
         }
+        val now = LocalDateTime.now(clock)
         return houseMemberRepository.save(
             HouseMember(
                 id = UUID.randomUUID(),
@@ -57,7 +60,7 @@ class HouseService(
                 userId = command.invitedUserId,
                 role = MemberRole.MEMBER,
                 status = MemberStatus.PENDING,
-                createdAt = LocalDateTime.now()
+                createdAt = now
             )
         )
     }

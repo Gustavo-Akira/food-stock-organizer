@@ -18,7 +18,10 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import java.time.Clock
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 @ExtendWith(MockitoExtension::class)
@@ -26,7 +29,8 @@ class HouseServiceTest {
 
     private val houseRepository: HouseRepository = mock()
     private val houseMemberRepository: HouseMemberRepository = mock()
-    private val service = HouseService(houseRepository, houseMemberRepository)
+    private val fixedClock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)
+    private val service = HouseService(houseRepository, houseMemberRepository, fixedClock)
 
     @Test
     fun `createHouse saves house and creates OWNER member`() {
@@ -52,9 +56,10 @@ class HouseServiceTest {
         val ownerId = UUID.randomUUID()
         val invitedUserId = UUID.randomUUID()
         val houseId = UUID.randomUUID()
+        val expectedNow = LocalDateTime.now(fixedClock)
         val house = House(
             id = houseId, name = "Casa", ownerId = ownerId,
-            createdAt = LocalDateTime.now(), updatedAt = LocalDateTime.now()
+            createdAt = expectedNow, updatedAt = expectedNow
         )
         whenever(houseRepository.findById(houseId)).thenReturn(house)
         whenever(houseMemberRepository.findByHouseIdAndUserId(houseId, invitedUserId)).thenReturn(null)
@@ -68,6 +73,25 @@ class HouseServiceTest {
         assertEquals(invitedUserId, result.userId)
         assertEquals(MemberRole.MEMBER, result.role)
         assertEquals(MemberStatus.PENDING, result.status)
+        assertEquals(expectedNow, result.createdAt)
+    }
+
+    @Test
+    fun `createHouse uses clock for timestamps`() {
+        val ownerId = UUID.randomUUID()
+        val expectedNow = LocalDateTime.now(fixedClock)
+        val command = CreateHouseCommand(name = "Casa do Gustavo", ownerId = ownerId)
+        whenever(houseRepository.save(any())).thenAnswer { it.arguments[0] as House }
+        whenever(houseMemberRepository.save(any())).thenAnswer { it.arguments[0] as HouseMember }
+
+        val result = service.createHouse(command)
+
+        assertEquals(expectedNow, result.createdAt)
+        assertEquals(expectedNow, result.updatedAt)
+
+        val captor = argumentCaptor<HouseMember>()
+        verify(houseMemberRepository).save(captor.capture())
+        assertEquals(expectedNow, captor.firstValue.createdAt)
     }
 
     @Test
