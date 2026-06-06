@@ -1,5 +1,8 @@
 package com.foodstock.household.domain.service
 
+import com.foodstock.household.domain.exception.AlreadyMemberException
+import com.foodstock.household.domain.exception.HouseNotFoundException
+import com.foodstock.household.domain.exception.UnauthorizedMemberOperationException
 import com.foodstock.household.domain.model.House
 import com.foodstock.household.domain.model.HouseMember
 import com.foodstock.household.domain.model.MemberRole
@@ -45,12 +48,12 @@ class HouseService(
 
     override fun inviteMember(command: InviteMemberCommand): HouseMember {
         val house = houseRepository.findById(command.houseId)
-            ?: throw NoSuchElementException("House not found: ${command.houseId}")
+            ?: throw HouseNotFoundException(command.houseId)
         if (house.ownerId != command.invitedByUserId) {
-            throw IllegalArgumentException("Only the house owner can invite members")
+            throw UnauthorizedMemberOperationException("Only the house owner can invite members")
         }
         if (houseMemberRepository.findByHouseIdAndUserId(command.houseId, command.invitedUserId) != null) {
-            throw IllegalArgumentException("User is already a member of this house")
+            throw AlreadyMemberException("User is already a member of this house")
         }
         val now = LocalDateTime.now(clock)
         return houseMemberRepository.save(

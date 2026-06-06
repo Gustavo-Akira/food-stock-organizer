@@ -1,5 +1,6 @@
 package com.foodstock.inventory.domain.service
 
+import com.foodstock.inventory.domain.exception.ItemNotFoundException
 import com.foodstock.inventory.domain.model.Category
 import com.foodstock.inventory.domain.model.InventoryItem
 import com.foodstock.inventory.domain.model.QuantityLevel
@@ -102,11 +103,11 @@ class InventoryServiceTest {
     }
 
     @Test
-    fun `updateQuantity throws NoSuchElementException when item not found`() {
+    fun `updateQuantity throws ItemNotFoundException when item not found`() {
         val itemId = UUID.randomUUID()
         whenever(inventoryRepository.findById(itemId)).thenReturn(null)
 
-        assertThrows<NoSuchElementException> {
+        assertThrows<ItemNotFoundException> {
             service.updateQuantity(UpdateItemQuantityCommand(itemId = itemId, quantityLevel = QuantityLevel.ENOUGH))
         }
     }

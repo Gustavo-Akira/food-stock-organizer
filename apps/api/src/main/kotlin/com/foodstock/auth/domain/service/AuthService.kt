@@ -1,5 +1,7 @@
 package com.foodstock.auth.domain.service
 
+import com.foodstock.auth.domain.exception.EmailAlreadyInUseException
+import com.foodstock.auth.domain.exception.InvalidCredentialsException
 import com.foodstock.auth.domain.model.User
 import com.foodstock.auth.domain.port.`in`.LoginResult
 import com.foodstock.auth.domain.port.`in`.LoginUseCase
@@ -16,7 +18,7 @@ class AuthService(
 
     override fun register(name: String, email: String, password: String): User {
         if (userRepository.existsByEmail(email)) {
-            throw IllegalArgumentException("Email already in use")
+            throw EmailAlreadyInUseException(email)
         }
         val user = User(
             name = name,
@@ -28,9 +30,9 @@ class AuthService(
 
     override fun login(email: String, password: String): LoginResult {
         val user = userRepository.findByEmail(email)
-            ?: throw IllegalArgumentException("Invalid credentials")
+            ?: throw InvalidCredentialsException()
         if (!passwordHashPort.matches(password, user.passwordHash)) {
-            throw IllegalArgumentException("Invalid credentials")
+            throw InvalidCredentialsException()
         }
         val token = jwtPort.generateToken(user)
         return LoginResult(token = token, user = user)

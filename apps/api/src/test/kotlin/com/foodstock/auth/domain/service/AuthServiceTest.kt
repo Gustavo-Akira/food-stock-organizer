@@ -1,5 +1,7 @@
 package com.foodstock.auth.domain.service
 
+import com.foodstock.auth.domain.exception.EmailAlreadyInUseException
+import com.foodstock.auth.domain.exception.InvalidCredentialsException
 import com.foodstock.auth.domain.model.User
 import com.foodstock.auth.domain.port.`in`.LoginResult
 import com.foodstock.auth.domain.port.out.JwtPort
@@ -36,10 +38,10 @@ class AuthServiceTest {
     }
 
     @Test
-    fun `register throws IllegalArgumentException when email already in use`() {
+    fun `register throws EmailAlreadyInUseException when email already in use`() {
         whenever(userRepository.existsByEmail("alice@example.com")).thenReturn(true)
 
-        assertThrows<IllegalArgumentException> {
+        assertThrows<EmailAlreadyInUseException> {
             service.register(name = "Alice", email = "alice@example.com", password = "secret")
         }
     }
@@ -58,22 +60,22 @@ class AuthServiceTest {
     }
 
     @Test
-    fun `login throws IllegalArgumentException when user not found`() {
+    fun `login throws InvalidCredentialsException when user not found`() {
         whenever(userRepository.findByEmail("unknown@example.com")).thenReturn(null)
 
-        val ex = assertThrows<IllegalArgumentException> {
+        val ex = assertThrows<InvalidCredentialsException> {
             service.login(email = "unknown@example.com", password = "secret")
         }
         assertEquals("Invalid credentials", ex.message)
     }
 
     @Test
-    fun `login throws IllegalArgumentException when password does not match`() {
+    fun `login throws InvalidCredentialsException when password does not match`() {
         val user = User(name = "Alice", email = "alice@example.com", passwordHash = "hashed")
         whenever(userRepository.findByEmail("alice@example.com")).thenReturn(user)
         whenever(passwordHashPort.matches("wrong", "hashed")).thenReturn(false)
 
-        val ex = assertThrows<IllegalArgumentException> {
+        val ex = assertThrows<InvalidCredentialsException> {
             service.login(email = "alice@example.com", password = "wrong")
         }
         assertEquals("Invalid credentials", ex.message)
