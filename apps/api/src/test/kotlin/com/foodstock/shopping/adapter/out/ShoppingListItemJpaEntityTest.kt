@@ -2,6 +2,7 @@ package com.foodstock.shopping.adapter.out
 
 import com.foodstock.shopping.domain.model.ShoppingListItem
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import java.time.LocalDateTime
@@ -64,5 +65,38 @@ class ShoppingListItemJpaEntityTest {
 
         val roundTripped = ShoppingListItemJpaEntity.fromDomain(domain)
         assertNull(roundTripped.inventoryItemId)
+    }
+
+    @Test
+    fun `fromDomain preserves id, shoppingListId, quantity, checked and createdAt`() {
+        val id = UUID.randomUUID()
+        val shoppingListId = UUID.randomUUID()
+        val createdAt = LocalDateTime.of(2026, 3, 1, 10, 0)
+        val item = ShoppingListItem(
+            id = id, shoppingListId = shoppingListId, inventoryItemId = null,
+            name = "Óleo", quantity = 3, checked = true, createdAt = createdAt
+        )
+
+        val entity = ShoppingListItemJpaEntity.fromDomain(item)
+
+        assertEquals(id, entity.id)
+        assertEquals(shoppingListId, entity.shoppingListId)
+        assertEquals(3, entity.quantity)
+        assertEquals(true, entity.checked)
+        assertEquals(createdAt, entity.createdAt)
+    }
+
+    @Test
+    fun `constructor defaults all optional fields when only createdAt is specified`() {
+        val createdAt = LocalDateTime.of(2026, 4, 1, 0, 0)
+        val entity = ShoppingListItemJpaEntity(createdAt = createdAt)
+
+        assertNotNull(entity.id)
+        assertNotNull(entity.shoppingListId)
+        assertNull(entity.inventoryItemId)
+        assertEquals("", entity.name)
+        assertEquals(1, entity.quantity)
+        assertEquals(false, entity.checked)
+        assertEquals(createdAt, entity.createdAt)
     }
 }

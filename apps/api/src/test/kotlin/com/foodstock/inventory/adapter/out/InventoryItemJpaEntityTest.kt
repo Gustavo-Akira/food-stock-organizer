@@ -78,4 +78,41 @@ class InventoryItemJpaEntityTest {
         assertNull(roundTripped.expiryDate)
         assertNull(roundTripped.notes)
     }
+
+    @Test
+    fun `fromDomain preserves houseId, category, quantityLevel, createdAt and updatedAt`() {
+        val id = UUID.randomUUID()
+        val houseId = UUID.randomUUID()
+        val createdAt = LocalDateTime.of(2026, 4, 1, 8, 0)
+        val updatedAt = LocalDateTime.of(2026, 4, 1, 9, 0)
+        val item = InventoryItem(
+            id = id, houseId = houseId, name = "Leite",
+            category = Category.FOOD, quantityLevel = QuantityLevel.ENOUGH,
+            expiryDate = null, notes = null, createdAt = createdAt, updatedAt = updatedAt
+        )
+
+        val entity = InventoryItemJpaEntity.fromDomain(item)
+
+        assertEquals(houseId, entity.houseId)
+        assertEquals(Category.FOOD, entity.category)
+        assertEquals(QuantityLevel.ENOUGH, entity.quantityLevel)
+        assertEquals(createdAt, entity.createdAt)
+        assertEquals(updatedAt, entity.updatedAt)
+    }
+
+    @Test
+    fun `constructor defaults expiryDate and notes to null when not specified`() {
+        val entity = InventoryItemJpaEntity(
+            id = UUID.randomUUID(),
+            houseId = UUID.randomUUID(),
+            name = "Feijão",
+            category = Category.FOOD,
+            quantityLevel = QuantityLevel.RUNNING_OUT,
+            createdAt = LocalDateTime.of(2026, 5, 1, 0, 0),
+            updatedAt = LocalDateTime.of(2026, 5, 1, 0, 0)
+        )
+
+        assertNull(entity.expiryDate)
+        assertNull(entity.notes)
+    }
 }
