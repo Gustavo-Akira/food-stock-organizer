@@ -2,13 +2,17 @@ package com.foodstock.household.domain.service
 
 import com.foodstock.household.domain.exception.AlreadyMemberException
 import com.foodstock.household.domain.exception.HouseNotFoundException
+import com.foodstock.household.domain.exception.InvitationAlreadyResolvedException
+import com.foodstock.household.domain.exception.InvitationNotFoundException
 import com.foodstock.household.domain.exception.UnauthorizedMemberOperationException
 import com.foodstock.household.domain.model.House
 import com.foodstock.household.domain.model.HouseMember
 import com.foodstock.household.domain.model.MemberRole
 import com.foodstock.household.domain.model.MemberStatus
 import com.foodstock.household.domain.port.`in`.CreateHouseCommand
+import com.foodstock.household.domain.port.`in`.InvitationAction
 import com.foodstock.household.domain.port.`in`.InviteMemberCommand
+import com.foodstock.household.domain.port.`in`.RespondToInvitationCommand
 import com.foodstock.household.domain.port.out.HouseMemberRepository
 import com.foodstock.household.domain.port.out.HouseRepository
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -149,5 +153,194 @@ class HouseServiceTest {
         )
 
         assertThrows<AlreadyMemberException> { service.inviteMember(command) }
+    }
+
+    @Test
+    fun `respondToInvitation ACCEPT transitions PENDING to ACTIVE when called by invited user`() {
+        val ownerId = UUID.randomUUID()
+        val invitedUserId = UUID.randomUUID()
+        val houseId = UUID.randomUUID()
+        val memberId = UUID.randomUUID()
+        val expectedNow = LocalDateTime.now(fixedClock)
+        val house = House(id = houseId, name = "Casa", ownerId = ownerId, createdAt = expectedNow, updatedAt = expectedNow)
+        val pendingMember = HouseMember(id = memberId, houseId = houseId, userId = invitedUserId, role = MemberRole.MEMBER, status = MemberStatus.PENDING, createdAt = expectedNow)
+        whenever(houseRepository.findById(houseId)).thenReturn(house)
+        whenever(houseMemberRepository.findById(memberId)).thenReturn(pendingMember)
+        whenever(houseMemberRepository.save(any())).thenAnswer { it.arguments[0] as HouseMember }
+
+        val result = service.respondToInvitation(
+            RespondToInvitationCommand(houseId = houseId, memberId = memberId, respondingUserId = invitedUserId, action = InvitationAction.ACCEPT)
+        )
+
+        val captor = argumentCaptor<HouseMember>()
+        verify(houseMemberRepository).save(captor.capture())
+        assertEquals(MemberStatus.ACTIVE, captor.firstValue.status)
+        assertEquals(MemberStatus.ACTIVE, result.status)
+    }
+
+    @Test
+    fun `respondToInvitation REJECT transitions PENDING to REJECTED when called by invited user`() {
+        val ownerId = UUID.randomUUID()
+        val invitedUserId = UUID.randomUUID()
+        val houseId = UUID.randomUUID()
+        val memberId = UUID.randomUUID()
+        val expectedNow = LocalDateTime.now(fixedClock)
+        val house = House(id = houseId, name = "Casa", ownerId = ownerId, createdAt = expectedNow, updatedAt = expectedNow)
+        val pendingMember = HouseMember(id = memberId, houseId = houseId, userId = invitedUserId, role = MemberRole.MEMBER, status = MemberStatus.PENDING, createdAt = expectedNow)
+        whenever(houseRepository.findById(houseId)).thenReturn(house)
+        whenever(houseMemberRepository.findById(memberId)).thenReturn(pendingMember)
+        whenever(houseMemberRepository.save(any())).thenAnswer { it.arguments[0] as HouseMember }
+
+        val result = service.respondToInvitation(
+            RespondToInvitationCommand(houseId = houseId, memberId = memberId, respondingUserId = invitedUserId, action = InvitationAction.REJECT)
+        )
+
+        val captor = argumentCaptor<HouseMember>()
+        verify(houseMemberRepository).save(captor.capture())
+        assertEquals(MemberStatus.REJECTED, captor.firstValue.status)
+        assertEquals(MemberStatus.REJECTED, result.status)
+    }
+
+    @Test
+    fun `respondToInvitation REVOKE transitions PENDING to REJECTED when called by house owner`() {
+        val ownerId = UUID.randomUUID()
+        val invitedUserId = UUID.randomUUID()
+        val houseId = UUID.randomUUID()
+        val memberId = UUID.randomUUID()
+        val expectedNow = LocalDateTime.now(fixedClock)
+        val house = House(id = houseId, name = "Casa", ownerId = ownerId, createdAt = expectedNow, updatedAt = expectedNow)
+        val pendingMember = HouseMember(id = memberId, houseId = houseId, userId = invitedUserId, role = MemberRole.MEMBER, status = MemberStatus.PENDING, createdAt = expectedNow)
+        whenever(houseRepository.findById(houseId)).thenReturn(house)
+        whenever(houseMemberRepository.findById(memberId)).thenReturn(pendingMember)
+        whenever(houseMemberRepository.save(any())).thenAnswer { it.arguments[0] as HouseMember }
+
+        val result = service.respondToInvitation(
+            RespondToInvitationCommand(houseId = houseId, memberId = memberId, respondingUserId = ownerId, action = InvitationAction.REVOKE)
+        )
+
+        val captor = argumentCaptor<HouseMember>()
+        verify(houseMemberRepository).save(captor.capture())
+        assertEquals(MemberStatus.REJECTED, captor.firstValue.status)
+        assertEquals(MemberStatus.REJECTED, result.status)
+    }
+
+    @Test
+    fun `respondToInvitation throws HouseNotFoundException when house not found`() {
+        whenever(houseRepository.findById(any())).thenReturn(null)
+
+        assertThrows<HouseNotFoundException> {
+            service.respondToInvitation(
+                RespondToInvitationCommand(houseId = UUID.randomUUID(), memberId = UUID.randomUUID(), respondingUserId = UUID.randomUUID(), action = InvitationAction.ACCEPT)
+            )
+        }
+    }
+
+    @Test
+    fun `respondToInvitation throws InvitationNotFoundException when member not found`() {
+        val houseId = UUID.randomUUID()
+        val expectedNow = LocalDateTime.now(fixedClock)
+        val house = House(id = houseId, name = "Casa", ownerId = UUID.randomUUID(), createdAt = expectedNow, updatedAt = expectedNow)
+        whenever(houseRepository.findById(houseId)).thenReturn(house)
+        whenever(houseMemberRepository.findById(any())).thenReturn(null)
+
+        assertThrows<InvitationNotFoundException> {
+            service.respondToInvitation(
+                RespondToInvitationCommand(houseId = houseId, memberId = UUID.randomUUID(), respondingUserId = UUID.randomUUID(), action = InvitationAction.ACCEPT)
+            )
+        }
+    }
+
+    @Test
+    fun `respondToInvitation throws InvitationAlreadyResolvedException when status is ACTIVE`() {
+        val ownerId = UUID.randomUUID()
+        val invitedUserId = UUID.randomUUID()
+        val houseId = UUID.randomUUID()
+        val memberId = UUID.randomUUID()
+        val expectedNow = LocalDateTime.now(fixedClock)
+        val house = House(id = houseId, name = "Casa", ownerId = ownerId, createdAt = expectedNow, updatedAt = expectedNow)
+        val activeMember = HouseMember(id = memberId, houseId = houseId, userId = invitedUserId, role = MemberRole.MEMBER, status = MemberStatus.ACTIVE, createdAt = expectedNow)
+        whenever(houseRepository.findById(houseId)).thenReturn(house)
+        whenever(houseMemberRepository.findById(memberId)).thenReturn(activeMember)
+
+        assertThrows<InvitationAlreadyResolvedException> {
+            service.respondToInvitation(
+                RespondToInvitationCommand(houseId = houseId, memberId = memberId, respondingUserId = invitedUserId, action = InvitationAction.ACCEPT)
+            )
+        }
+    }
+
+    @Test
+    fun `respondToInvitation throws InvitationAlreadyResolvedException when status is REJECTED`() {
+        val ownerId = UUID.randomUUID()
+        val invitedUserId = UUID.randomUUID()
+        val houseId = UUID.randomUUID()
+        val memberId = UUID.randomUUID()
+        val expectedNow = LocalDateTime.now(fixedClock)
+        val house = House(id = houseId, name = "Casa", ownerId = ownerId, createdAt = expectedNow, updatedAt = expectedNow)
+        val rejectedMember = HouseMember(id = memberId, houseId = houseId, userId = invitedUserId, role = MemberRole.MEMBER, status = MemberStatus.REJECTED, createdAt = expectedNow)
+        whenever(houseRepository.findById(houseId)).thenReturn(house)
+        whenever(houseMemberRepository.findById(memberId)).thenReturn(rejectedMember)
+
+        assertThrows<InvitationAlreadyResolvedException> {
+            service.respondToInvitation(
+                RespondToInvitationCommand(houseId = houseId, memberId = memberId, respondingUserId = invitedUserId, action = InvitationAction.ACCEPT)
+            )
+        }
+    }
+
+    @Test
+    fun `respondToInvitation throws UnauthorizedMemberOperationException when invited user tries REVOKE`() {
+        val ownerId = UUID.randomUUID()
+        val invitedUserId = UUID.randomUUID()
+        val houseId = UUID.randomUUID()
+        val memberId = UUID.randomUUID()
+        val expectedNow = LocalDateTime.now(fixedClock)
+        val house = House(id = houseId, name = "Casa", ownerId = ownerId, createdAt = expectedNow, updatedAt = expectedNow)
+        val pendingMember = HouseMember(id = memberId, houseId = houseId, userId = invitedUserId, role = MemberRole.MEMBER, status = MemberStatus.PENDING, createdAt = expectedNow)
+        whenever(houseRepository.findById(houseId)).thenReturn(house)
+        whenever(houseMemberRepository.findById(memberId)).thenReturn(pendingMember)
+
+        assertThrows<UnauthorizedMemberOperationException> {
+            service.respondToInvitation(
+                RespondToInvitationCommand(houseId = houseId, memberId = memberId, respondingUserId = invitedUserId, action = InvitationAction.REVOKE)
+            )
+        }
+    }
+
+    @Test
+    fun `respondToInvitation throws UnauthorizedMemberOperationException when owner tries ACCEPT`() {
+        val ownerId = UUID.randomUUID()
+        val invitedUserId = UUID.randomUUID()
+        val houseId = UUID.randomUUID()
+        val memberId = UUID.randomUUID()
+        val expectedNow = LocalDateTime.now(fixedClock)
+        val house = House(id = houseId, name = "Casa", ownerId = ownerId, createdAt = expectedNow, updatedAt = expectedNow)
+        val pendingMember = HouseMember(id = memberId, houseId = houseId, userId = invitedUserId, role = MemberRole.MEMBER, status = MemberStatus.PENDING, createdAt = expectedNow)
+        whenever(houseRepository.findById(houseId)).thenReturn(house)
+        whenever(houseMemberRepository.findById(memberId)).thenReturn(pendingMember)
+
+        assertThrows<UnauthorizedMemberOperationException> {
+            service.respondToInvitation(
+                RespondToInvitationCommand(houseId = houseId, memberId = memberId, respondingUserId = ownerId, action = InvitationAction.ACCEPT)
+            )
+        }
+    }
+
+    @Test
+    fun `respondToInvitation throws InvitationNotFoundException when memberId belongs to a different house`() {
+        val houseId = UUID.randomUUID()
+        val differentHouseId = UUID.randomUUID()
+        val memberId = UUID.randomUUID()
+        val expectedNow = LocalDateTime.now(fixedClock)
+        val house = House(id = houseId, name = "Casa", ownerId = UUID.randomUUID(), createdAt = expectedNow, updatedAt = expectedNow)
+        val memberFromDifferentHouse = HouseMember(id = memberId, houseId = differentHouseId, userId = UUID.randomUUID(), role = MemberRole.MEMBER, status = MemberStatus.PENDING, createdAt = expectedNow)
+        whenever(houseRepository.findById(houseId)).thenReturn(house)
+        whenever(houseMemberRepository.findById(memberId)).thenReturn(memberFromDifferentHouse)
+
+        assertThrows<InvitationNotFoundException> {
+            service.respondToInvitation(
+                RespondToInvitationCommand(houseId = houseId, memberId = memberId, respondingUserId = UUID.randomUUID(), action = InvitationAction.ACCEPT)
+            )
+        }
     }
 }
