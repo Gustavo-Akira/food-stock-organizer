@@ -1,5 +1,5 @@
 package com.foodstock.household.domain.exception
 
-import com.foodstock.common.exception.InvalidOperationException
+import com.foodstock.common.exception.ForbiddenOperationException
 
-class UnauthorizedMemberOperationException(message: String) : InvalidOperationException(message)
+class UnauthorizedMemberOperationException(message: String) : ForbiddenOperationException(message)

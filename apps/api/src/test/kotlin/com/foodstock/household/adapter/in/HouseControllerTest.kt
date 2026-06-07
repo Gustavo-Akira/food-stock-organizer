@@ -3,6 +3,7 @@ package com.foodstock.household.adapter.`in`
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.foodstock.household.adapter.`in`.dto.CreateHouseRequest
 import com.foodstock.household.adapter.`in`.dto.InviteMemberRequest
+import com.foodstock.household.domain.exception.UnauthorizedMemberOperationException
 import com.foodstock.household.domain.model.House
 import com.foodstock.household.domain.model.HouseMember
 import com.foodstock.household.domain.model.MemberRole
@@ -160,6 +161,44 @@ class HouseControllerTest {
         }
             .andExpect {
                 status { isBadRequest() }
+            }
+    }
+
+    @Test
+    fun `inviteMember returns 403 when caller is not the house owner`() {
+        val houseId = UUID.fromString("66666666-6666-6666-6666-666666666666")
+        val nonOwnerId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val invitedUserId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        whenever(inviteMemberUseCase.inviteMember(any()))
+            .thenThrow(UnauthorizedMemberOperationException("Only the house owner can invite members"))
+
+        mockMvc.post("/api/v1/houses/$houseId/members") {
+            contentType = MediaType.APPLICATION_JSON
+            header("X-User-Id", nonOwnerId.toString())
+            content = objectMapper.writeValueAsString(InviteMemberRequest(userId = invitedUserId))
+        }
+            .andExpect {
+                status { isForbidden() }
+                jsonPath("$.error") { value("Only the house owner can invite members") }
+            }
+    }
+
+    @Test
+    fun `respondToInvitation returns 403 when caller is not the invited user`() {
+        val houseId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        val memberId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val wrongUserId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc")
+        whenever(respondToInvitationUseCase.respondToInvitation(any()))
+            .thenThrow(UnauthorizedMemberOperationException("Only the invited user can accept or reject an invitation"))
+
+        mockMvc.patch("/api/v1/houses/$houseId/members/$memberId") {
+            contentType = MediaType.APPLICATION_JSON
+            header("X-User-Id", wrongUserId.toString())
+            content = objectMapper.writeValueAsString(RespondToInvitationRequest(action = InvitationAction.ACCEPT))
+        }
+            .andExpect {
+                status { isForbidden() }
+                jsonPath("$.error") { value("Only the invited user can accept or reject an invitation") }
             }
     }
 }
