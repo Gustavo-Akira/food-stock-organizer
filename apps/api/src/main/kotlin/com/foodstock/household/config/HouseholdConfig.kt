@@ -3,6 +3,9 @@ package com.foodstock.household.config
 import com.foodstock.household.adapter.out.HouseJpaRepository
 import com.foodstock.household.adapter.out.HouseMemberJpaRepository
 import com.foodstock.household.domain.port.`in`.CreateHouseUseCase
+import com.foodstock.household.domain.port.`in`.GetHouseMembersUseCase
+import com.foodstock.household.domain.port.`in`.GetHouseUseCase
+import com.foodstock.household.domain.port.`in`.GetMyHousesUseCase
 import com.foodstock.household.domain.port.`in`.InviteMemberUseCase
 import com.foodstock.household.domain.port.`in`.RespondToInvitationUseCase
 import com.foodstock.household.domain.service.HouseService
@@ -31,4 +34,13 @@ class HouseholdConfig(
 
     @Bean
     fun respondToInvitationUseCase(): RespondToInvitationUseCase = houseService()
+
+    @Bean
+    fun getMyHousesUseCase(): GetMyHousesUseCase = houseService()
+
+    @Bean
+    fun getHouseUseCase(): GetHouseUseCase = houseService()
+
+    @Bean
+    fun getHouseMembersUseCase(): GetHouseMembersUseCase = houseService()
 }
