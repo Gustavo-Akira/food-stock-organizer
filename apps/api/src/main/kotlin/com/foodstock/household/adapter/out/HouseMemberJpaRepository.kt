@@ -19,6 +19,9 @@ class HouseMemberJpaRepository(
     override fun save(member: HouseMember): HouseMember =
         delegate.save(HouseMemberJpaEntity.fromDomain(member)).toDomain()
 
+    override fun findById(memberId: UUID): HouseMember? =
+        delegate.findById(memberId).orElse(null)?.toDomain()
+
     override fun findByHouseIdAndUserId(houseId: UUID, userId: UUID): HouseMember? =
         delegate.findByHouseIdAndUserId(houseId, userId)?.toDomain()
 

@@ -2,6 +2,8 @@ package com.foodstock.household.domain.service
 
 import com.foodstock.household.domain.exception.AlreadyMemberException
 import com.foodstock.household.domain.exception.HouseNotFoundException
+import com.foodstock.household.domain.exception.InvitationAlreadyResolvedException
+import com.foodstock.household.domain.exception.InvitationNotFoundException
 import com.foodstock.household.domain.exception.UnauthorizedMemberOperationException
 import com.foodstock.household.domain.model.House
 import com.foodstock.household.domain.model.HouseMember
@@ -9,8 +11,11 @@ import com.foodstock.household.domain.model.MemberRole
 import com.foodstock.household.domain.model.MemberStatus
 import com.foodstock.household.domain.port.`in`.CreateHouseCommand
 import com.foodstock.household.domain.port.`in`.CreateHouseUseCase
+import com.foodstock.household.domain.port.`in`.InvitationAction
 import com.foodstock.household.domain.port.`in`.InviteMemberCommand
 import com.foodstock.household.domain.port.`in`.InviteMemberUseCase
+import com.foodstock.household.domain.port.`in`.RespondToInvitationCommand
+import com.foodstock.household.domain.port.`in`.RespondToInvitationUseCase
 import com.foodstock.household.domain.port.out.HouseMemberRepository
 import com.foodstock.household.domain.port.out.HouseRepository
 import java.time.Clock
@@ -21,7 +26,7 @@ class HouseService(
     private val houseRepository: HouseRepository,
     private val houseMemberRepository: HouseMemberRepository,
     private val clock: Clock
-) : CreateHouseUseCase, InviteMemberUseCase {
+) : CreateHouseUseCase, InviteMemberUseCase, RespondToInvitationUseCase {
 
     override fun createHouse(command: CreateHouseCommand): House {
         val now = LocalDateTime.now(clock)
@@ -66,5 +71,35 @@ class HouseService(
                 createdAt = now
             )
         )
+    }
+
+    override fun respondToInvitation(command: RespondToInvitationCommand): HouseMember {
+        val house = houseRepository.findById(command.houseId)
+            ?: throw HouseNotFoundException(command.houseId)
+        val member = houseMemberRepository.findById(command.memberId)
+            ?: throw InvitationNotFoundException(command.memberId)
+        if (member.houseId != command.houseId) {
+            throw InvitationNotFoundException(command.memberId)
+        }
+        if (member.status != MemberStatus.PENDING) {
+            throw InvitationAlreadyResolvedException("Invitation is already ${member.status}")
+        }
+        when (command.action) {
+            InvitationAction.ACCEPT, InvitationAction.REJECT -> {
+                if (command.respondingUserId != member.userId) {
+                    throw UnauthorizedMemberOperationException("Only the invited user can accept or reject an invitation")
+                }
+            }
+            InvitationAction.REVOKE -> {
+                if (command.respondingUserId != house.ownerId) {
+                    throw UnauthorizedMemberOperationException("Only the house owner can revoke an invitation")
+                }
+            }
+        }
+        val newStatus = when (command.action) {
+            InvitationAction.ACCEPT -> MemberStatus.ACTIVE
+            InvitationAction.REJECT, InvitationAction.REVOKE -> MemberStatus.REJECTED
+        }
+        return houseMemberRepository.save(member.copy(status = newStatus))
     }
 }
