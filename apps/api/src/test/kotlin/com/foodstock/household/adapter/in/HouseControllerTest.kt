@@ -7,8 +7,11 @@ import com.foodstock.household.domain.model.House
 import com.foodstock.household.domain.model.HouseMember
 import com.foodstock.household.domain.model.MemberRole
 import com.foodstock.household.domain.model.MemberStatus
+import com.foodstock.household.adapter.`in`.dto.RespondToInvitationRequest
 import com.foodstock.household.domain.port.`in`.CreateHouseUseCase
+import com.foodstock.household.domain.port.`in`.InvitationAction
 import com.foodstock.household.domain.port.`in`.InviteMemberUseCase
+import com.foodstock.household.domain.port.`in`.RespondToInvitationUseCase
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
@@ -18,6 +21,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import java.time.LocalDateTime
 import java.util.UUID
@@ -37,6 +41,9 @@ class HouseControllerTest {
 
     @MockBean
     private lateinit var inviteMemberUseCase: InviteMemberUseCase
+
+    @MockBean
+    private lateinit var respondToInvitationUseCase: RespondToInvitationUseCase
 
     @Test
     fun `createHouse returns created house`() {
@@ -96,6 +103,60 @@ class HouseControllerTest {
         mockMvc.post("/api/v1/houses") {
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(CreateHouseRequest(name = "Casa"))
+        }
+            .andExpect {
+                status { isBadRequest() }
+            }
+    }
+
+    @Test
+    fun `respondToInvitation returns 200 with updated member on ACCEPT`() {
+        val memberId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val houseId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        val userId = UUID.fromString("33333333-3333-3333-3333-333333333333")
+        val now = LocalDateTime.parse("2026-06-06T12:00:00")
+        whenever(respondToInvitationUseCase.respondToInvitation(any())).thenReturn(
+            HouseMember(id = memberId, houseId = houseId, userId = userId, role = MemberRole.MEMBER, status = MemberStatus.ACTIVE, createdAt = now)
+        )
+
+        mockMvc.patch("/api/v1/houses/$houseId/members/$memberId") {
+            contentType = MediaType.APPLICATION_JSON
+            header("X-User-Id", userId.toString())
+            content = objectMapper.writeValueAsString(RespondToInvitationRequest(action = InvitationAction.ACCEPT))
+        }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.id") { value(memberId.toString()) }
+                jsonPath("$.houseId") { value(houseId.toString()) }
+                jsonPath("$.userId") { value(userId.toString()) }
+                jsonPath("$.status") { value("ACTIVE") }
+            }
+    }
+
+    @Test
+    fun `respondToInvitation returns 400 when action body is missing`() {
+        val houseId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        val memberId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val userId = UUID.fromString("33333333-3333-3333-3333-333333333333")
+
+        mockMvc.patch("/api/v1/houses/$houseId/members/$memberId") {
+            contentType = MediaType.APPLICATION_JSON
+            header("X-User-Id", userId.toString())
+            content = "{}"
+        }
+            .andExpect {
+                status { isBadRequest() }
+            }
+    }
+
+    @Test
+    fun `respondToInvitation returns 400 when X-User-Id header is missing`() {
+        val houseId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        val memberId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+
+        mockMvc.patch("/api/v1/houses/$houseId/members/$memberId") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(RespondToInvitationRequest(action = InvitationAction.ACCEPT))
         }
             .andExpect {
                 status { isBadRequest() }

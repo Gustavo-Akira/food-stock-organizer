@@ -2,12 +2,15 @@ package com.foodstock.household.adapter.`in`
 
 import com.foodstock.household.adapter.`in`.dto.CreateHouseRequest
 import com.foodstock.household.adapter.`in`.dto.InviteMemberRequest
+import com.foodstock.household.adapter.`in`.dto.RespondToInvitationRequest
 import com.foodstock.household.domain.model.MemberRole
 import com.foodstock.household.domain.model.MemberStatus
 import com.foodstock.household.domain.port.`in`.CreateHouseCommand
 import com.foodstock.household.domain.port.`in`.CreateHouseUseCase
 import com.foodstock.household.domain.port.`in`.InviteMemberCommand
 import com.foodstock.household.domain.port.`in`.InviteMemberUseCase
+import com.foodstock.household.domain.port.`in`.RespondToInvitationCommand
+import com.foodstock.household.domain.port.`in`.RespondToInvitationUseCase
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import java.util.UUID
@@ -25,7 +28,8 @@ data class HouseMemberResponse(
 @RequestMapping("/api/v1/houses")
 class HouseController(
     private val createHouseUseCase: CreateHouseUseCase,
-    private val inviteMemberUseCase: InviteMemberUseCase
+    private val inviteMemberUseCase: InviteMemberUseCase,
+    private val respondToInvitationUseCase: RespondToInvitationUseCase
 ) {
 
     @PostMapping
@@ -56,6 +60,32 @@ class HouseController(
                 houseId = houseId,
                 invitedUserId = request.userId,
                 invitedByUserId = invitedByUserId
+            )
+        )
+        return HouseMemberResponse(
+            id = member.id,
+            houseId = member.houseId,
+            userId = member.userId,
+            role = member.role,
+            status = member.status
+        )
+    }
+
+    @PatchMapping("/{houseId}/members/{memberId}")
+    fun respondToInvitation(
+        @PathVariable houseId: UUID,
+        @PathVariable memberId: UUID,
+        @RequestBody request: RespondToInvitationRequest,
+        // TODO: replace with @AuthenticationPrincipal once Spring Security JWT filter is wired
+        // Never trust a raw header for identity in production
+        @RequestHeader("X-User-Id") respondingUserId: UUID
+    ): HouseMemberResponse {
+        val member = respondToInvitationUseCase.respondToInvitation(
+            RespondToInvitationCommand(
+                houseId = houseId,
+                memberId = memberId,
+                respondingUserId = respondingUserId,
+                action = request.action
             )
         )
         return HouseMemberResponse(
