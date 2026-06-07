@@ -1,5 +1,6 @@
 package com.foodstock.common
 
+import com.foodstock.common.exception.ForbiddenOperationException
 import com.foodstock.common.exception.InvalidOperationException
 import com.foodstock.common.exception.ResourceNotFoundException
 import com.foodstock.common.exception.UnauthorizedException
@@ -19,6 +20,9 @@ class ExceptionStubController {
 
     @GetMapping("/test/bad-request")
     fun throwBadRequest(): String = throw InvalidOperationException("invalid input")
+
+    @GetMapping("/test/forbidden")
+    fun throwForbidden(): String = throw ForbiddenOperationException("forbidden")
 
     @GetMapping("/test/unauthorized")
     fun throwUnauthorized(): String = throw UnauthorizedException("unauthorized")
@@ -46,6 +50,15 @@ class GlobalExceptionHandlerTest {
             .andExpect {
                 status { isBadRequest() }
                 jsonPath("$.error") { value("invalid input") }
+            }
+    }
+
+    @Test
+    fun `ForbiddenOperationException is mapped to 403 with error body`() {
+        mockMvc.get("/test/forbidden")
+            .andExpect {
+                status { isForbidden() }
+                jsonPath("$.error") { value("forbidden") }
             }
     }
 

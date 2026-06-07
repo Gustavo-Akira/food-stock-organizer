@@ -1,5 +1,6 @@
 package com.foodstock.common
 
+import com.foodstock.common.exception.ForbiddenOperationException
 import com.foodstock.common.exception.InvalidOperationException
 import com.foodstock.common.exception.ResourceNotFoundException
 import com.foodstock.common.exception.UnauthorizedException
@@ -18,6 +19,10 @@ class GlobalExceptionHandler {
     @ExceptionHandler(InvalidOperationException::class)
     fun handleBadRequest(ex: InvalidOperationException): ResponseEntity<Map<String, String?>> =
         ResponseEntity.status(HttpStatus.BAD_REQUEST).body(mapOf("error" to ex.message))
+
+    @ExceptionHandler(ForbiddenOperationException::class)
+    fun handleForbidden(ex: ForbiddenOperationException): ResponseEntity<Map<String, String?>> =
+        ResponseEntity.status(HttpStatus.FORBIDDEN).body(mapOf("error" to ex.message))
 
     @ExceptionHandler(UnauthorizedException::class)
     fun handleUnauthorized(ex: UnauthorizedException): ResponseEntity<Map<String, String?>> =
