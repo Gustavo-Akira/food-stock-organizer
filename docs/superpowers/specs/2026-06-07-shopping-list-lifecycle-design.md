@@ -34,7 +34,14 @@ Any other transition throws `InvalidShoppingListStateException` → `409 Conflic
 
 ## API Surface
 
-All endpoints require `X-User-Id` header for identity (existing convention).
+All write endpoints require two headers:
+
+| Header | Description |
+|---|---|
+| `X-User-Id` | Caller identity (existing convention) |
+| `X-List-Version` | Optimistic lock token — the `version` value read from the latest `ShoppingListResponse` |
+
+`ShoppingListResponse` always includes `version: Long` in the body so clients can capture it.
 
 ### State Transitions (OWNER/ADMIN only)
 
@@ -55,6 +62,8 @@ PATCH  /api/v1/shopping-lists/{listId}/items/{itemId}    → 200 ShoppingListIte
 `PATCH` body accepts `quantity` (Int `>= 1`, optional) and `checked` (Boolean, optional).  
 At least one field must be present — an empty body returns `400 Bad Request`.  
 Item mutations on a `COMPLETED` or `CANCELLED` list return `409 Conflict`.
+
+Read-only endpoints (`GET /shopping-lists`, `GET /shopping-lists/{listId}`) do **not** require `X-List-Version`.
 
 ---
 
@@ -105,6 +114,8 @@ fun deleteItem(itemId: UUID)
 ### Inbound (port/in) — Use Case Interfaces
 
 **State transitions:**
+
+The controller extracts `listVersion: Long` from the `X-List-Version` header and passes it into each command.
 
 ```kotlin
 // StartShoppingUseCase.kt
@@ -265,8 +276,8 @@ Implemented in `InventoryItemJpaRepository` via a `@Modifying @Query`.
 | `ShoppingItemNotFoundException` | 404 | new |
 | `InvalidShoppingListStateException` | 409 | new — illegal status transition |
 | `InvalidOperationException` | 409 | existing — used for duplicate `inventoryItemId` |
-| `jakarta.persistence.OptimisticLockException` | 409 | thrown by `assertVersion` helper — stale version detected before save |
-| `ObjectOptimisticLockingFailureException` | 409 | Spring/JPA — stale version detected at DB write (race condition) |
+| `jakarta.persistence.OptimisticLockException` | 409 | thrown by `assertVersion` — stale `X-List-Version` detected before DB round-trip |
+| `ObjectOptimisticLockingFailureException` | 409 | Spring/JPA — stale version detected at DB write (race between load and save) |
 | `UnauthorizedMemberOperationException` | 403 | existing |
 
 `InvalidShoppingListStateException`, `ShoppingItemNotFoundException`, and `ObjectOptimisticLockingFailureException` must be registered in `GlobalExceptionHandler`.
