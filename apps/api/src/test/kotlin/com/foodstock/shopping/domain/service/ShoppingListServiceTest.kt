@@ -1,6 +1,8 @@
 package com.foodstock.shopping.domain.service
 
+import com.foodstock.shopping.domain.exception.ShoppingListNotFoundException
 import com.foodstock.shopping.domain.model.ShoppingList
+import com.foodstock.shopping.domain.model.ShoppingListItem
 import com.foodstock.shopping.domain.model.ShoppingListStatus
 import com.foodstock.shopping.domain.port.`in`.GenerateShoppingListCommand
 import com.foodstock.shopping.domain.port.out.RunningOutItem
@@ -9,6 +11,7 @@ import com.foodstock.shopping.domain.port.out.ShoppingListRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.kotlin.any
@@ -76,5 +79,65 @@ class ShoppingListServiceTest {
         assertEquals(houseId, result.houseId)
         assertEquals("Empty Shop", result.name)
         assertNotNull(result.id)
+    }
+
+    @Test
+    fun `getShoppingLists returns lists for house`() {
+        val houseId = UUID.randomUUID()
+        val now = LocalDateTime.now(fixedClock)
+        val list = ShoppingList(
+            id = UUID.randomUUID(), houseId = houseId, name = "Weekly",
+            status = ShoppingListStatus.OPEN, createdBy = UUID.randomUUID(),
+            createdAt = now, updatedAt = now
+        )
+        whenever(shoppingListRepository.findAllByHouseId(houseId)).thenReturn(listOf(list))
+
+        val result = service.getShoppingLists(houseId)
+
+        assertEquals(1, result.size)
+        assertEquals(houseId, result[0].houseId)
+        assertEquals("Weekly", result[0].name)
+    }
+
+    @Test
+    fun `getShoppingLists returns empty list when house has no lists`() {
+        val houseId = UUID.randomUUID()
+        whenever(shoppingListRepository.findAllByHouseId(houseId)).thenReturn(emptyList())
+
+        val result = service.getShoppingLists(houseId)
+
+        assertEquals(0, result.size)
+    }
+
+    @Test
+    fun `getShoppingList returns list with its items`() {
+        val listId = UUID.randomUUID()
+        val houseId = UUID.randomUUID()
+        val now = LocalDateTime.now(fixedClock)
+        val list = ShoppingList(
+            id = listId, houseId = houseId, name = "Weekly",
+            status = ShoppingListStatus.OPEN, createdBy = UUID.randomUUID(),
+            createdAt = now, updatedAt = now
+        )
+        val item = ShoppingListItem(
+            id = UUID.randomUUID(), shoppingListId = listId, inventoryItemId = null,
+            name = "Milk", quantity = 1, checked = false, createdAt = now
+        )
+        whenever(shoppingListRepository.findById(listId)).thenReturn(list)
+        whenever(shoppingListRepository.findItemsByListId(listId)).thenReturn(listOf(item))
+
+        val (resultList, resultItems) = service.getShoppingList(listId)
+
+        assertEquals(listId, resultList.id)
+        assertEquals(1, resultItems.size)
+        assertEquals("Milk", resultItems[0].name)
+    }
+
+    @Test
+    fun `getShoppingList throws ShoppingListNotFoundException when list does not exist`() {
+        val listId = UUID.randomUUID()
+        whenever(shoppingListRepository.findById(listId)).thenReturn(null)
+
+        assertThrows<ShoppingListNotFoundException> { service.getShoppingList(listId) }
     }
 }

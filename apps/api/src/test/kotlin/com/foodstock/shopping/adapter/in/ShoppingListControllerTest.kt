@@ -3,9 +3,13 @@ package com.foodstock.shopping.adapter.`in`
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.foodstock.shopping.adapter.`in`.dto.GenerateShoppingListRequest
 import com.foodstock.shopping.adapter.`in`.dto.ShoppingListResponse
+import com.foodstock.shopping.domain.exception.ShoppingListNotFoundException
 import com.foodstock.shopping.domain.model.ShoppingList
+import com.foodstock.shopping.domain.model.ShoppingListItem
 import com.foodstock.shopping.domain.model.ShoppingListStatus
 import com.foodstock.shopping.domain.port.`in`.GenerateShoppingListUseCase
+import com.foodstock.shopping.domain.port.`in`.GetShoppingListUseCase
+import com.foodstock.shopping.domain.port.`in`.GetShoppingListsUseCase
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
@@ -15,6 +19,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import java.time.LocalDateTime
 import java.util.UUID
@@ -31,6 +36,12 @@ class ShoppingListControllerTest {
 
     @MockBean
     private lateinit var generateShoppingListUseCase: GenerateShoppingListUseCase
+
+    @MockBean
+    private lateinit var getShoppingListsUseCase: GetShoppingListsUseCase
+
+    @MockBean
+    private lateinit var getShoppingListUseCase: GetShoppingListUseCase
 
     @Test
     fun `generateList returns created shopping list`() {
@@ -82,5 +93,64 @@ class ShoppingListControllerTest {
             .andExpect {
                 status { isBadRequest() }
             }
+    }
+
+    @Test
+    fun `getShoppingLists returns lists for house`() {
+        val houseId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val listId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        val createdBy = UUID.fromString("33333333-3333-3333-3333-333333333333")
+        val now = LocalDateTime.parse("2026-06-07T10:00:00")
+        whenever(getShoppingListsUseCase.getShoppingLists(houseId)).thenReturn(
+            listOf(ShoppingList(id = listId, houseId = houseId, name = "Weekly", status = ShoppingListStatus.OPEN, createdBy = createdBy, createdAt = now, updatedAt = now))
+        )
+
+        mockMvc.get("/api/v1/shopping-lists") {
+            header("X-House-Id", houseId.toString())
+        }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$[0].id") { value(listId.toString()) }
+                jsonPath("$[0].name") { value("Weekly") }
+                jsonPath("$[0].status") { value("OPEN") }
+            }
+    }
+
+    @Test
+    fun `getShoppingLists returns 400 when X-House-Id header is missing`() {
+        mockMvc.get("/api/v1/shopping-lists")
+            .andExpect { status { isBadRequest() } }
+    }
+
+    @Test
+    fun `getShoppingList returns list with nested items`() {
+        val listId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        val houseId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val itemId = UUID.fromString("44444444-4444-4444-4444-444444444444")
+        val createdBy = UUID.fromString("33333333-3333-3333-3333-333333333333")
+        val now = LocalDateTime.parse("2026-06-07T10:00:00")
+        val list = ShoppingList(id = listId, houseId = houseId, name = "Weekly", status = ShoppingListStatus.OPEN, createdBy = createdBy, createdAt = now, updatedAt = now)
+        val item = ShoppingListItem(id = itemId, shoppingListId = listId, inventoryItemId = null, name = "Milk", quantity = 2, checked = false, createdAt = now)
+        whenever(getShoppingListUseCase.getShoppingList(listId)).thenReturn(Pair(list, listOf(item)))
+
+        mockMvc.get("/api/v1/shopping-lists/$listId")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.id") { value(listId.toString()) }
+                jsonPath("$.name") { value("Weekly") }
+                jsonPath("$.items[0].id") { value(itemId.toString()) }
+                jsonPath("$.items[0].name") { value("Milk") }
+                jsonPath("$.items[0].quantity") { value(2) }
+                jsonPath("$.items[0].checked") { value(false) }
+            }
+    }
+
+    @Test
+    fun `getShoppingList returns 404 when list does not exist`() {
+        val listId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        whenever(getShoppingListUseCase.getShoppingList(listId)).thenThrow(ShoppingListNotFoundException(listId))
+
+        mockMvc.get("/api/v1/shopping-lists/$listId")
+            .andExpect { status { isNotFound() } }
     }
 }
