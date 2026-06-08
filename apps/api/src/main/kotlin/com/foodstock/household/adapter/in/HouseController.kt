@@ -7,6 +7,9 @@ import com.foodstock.household.domain.model.MemberRole
 import com.foodstock.household.domain.model.MemberStatus
 import com.foodstock.household.domain.port.`in`.CreateHouseCommand
 import com.foodstock.household.domain.port.`in`.CreateHouseUseCase
+import com.foodstock.household.domain.port.`in`.GetHouseMembersUseCase
+import com.foodstock.household.domain.port.`in`.GetHouseUseCase
+import com.foodstock.household.domain.port.`in`.GetMyHousesUseCase
 import com.foodstock.household.domain.port.`in`.InviteMemberCommand
 import com.foodstock.household.domain.port.`in`.InviteMemberUseCase
 import com.foodstock.household.domain.port.`in`.RespondToInvitationCommand
@@ -29,8 +32,34 @@ data class HouseMemberResponse(
 class HouseController(
     private val createHouseUseCase: CreateHouseUseCase,
     private val inviteMemberUseCase: InviteMemberUseCase,
-    private val respondToInvitationUseCase: RespondToInvitationUseCase
+    private val respondToInvitationUseCase: RespondToInvitationUseCase,
+    private val getMyHousesUseCase: GetMyHousesUseCase,
+    private val getHouseUseCase: GetHouseUseCase,
+    private val getHouseMembersUseCase: GetHouseMembersUseCase
 ) {
+
+    @GetMapping
+    fun getMyHouses(
+        @RequestHeader("X-User-Id") userId: UUID
+    ): List<HouseResponse> =
+        getMyHousesUseCase.getMyHouses(userId).map { HouseResponse(it.id, it.name, it.ownerId) }
+
+    @GetMapping("/{houseId}")
+    fun getHouse(
+        @PathVariable houseId: UUID,
+        @RequestHeader("X-User-Id") userId: UUID
+    ): HouseResponse {
+        val house = getHouseUseCase.getHouse(houseId, userId)
+        return HouseResponse(house.id, house.name, house.ownerId)
+    }
+
+    @GetMapping("/{houseId}/members")
+    fun getHouseMembers(
+        @PathVariable houseId: UUID,
+        @RequestHeader("X-User-Id") userId: UUID
+    ): List<HouseMemberResponse> =
+        getHouseMembersUseCase.getHouseMembers(houseId, userId)
+            .map { HouseMemberResponse(it.id, it.houseId, it.userId, it.role, it.status) }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

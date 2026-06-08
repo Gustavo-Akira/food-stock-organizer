@@ -11,6 +11,9 @@ import com.foodstock.household.domain.model.MemberRole
 import com.foodstock.household.domain.model.MemberStatus
 import com.foodstock.household.domain.port.`in`.CreateHouseCommand
 import com.foodstock.household.domain.port.`in`.CreateHouseUseCase
+import com.foodstock.household.domain.port.`in`.GetHouseMembersUseCase
+import com.foodstock.household.domain.port.`in`.GetHouseUseCase
+import com.foodstock.household.domain.port.`in`.GetMyHousesUseCase
 import com.foodstock.household.domain.port.`in`.InvitationAction
 import com.foodstock.household.domain.port.`in`.InviteMemberCommand
 import com.foodstock.household.domain.port.`in`.InviteMemberUseCase
@@ -26,7 +29,7 @@ class HouseService(
     private val houseRepository: HouseRepository,
     private val houseMemberRepository: HouseMemberRepository,
     private val clock: Clock
-) : CreateHouseUseCase, InviteMemberUseCase, RespondToInvitationUseCase {
+) : CreateHouseUseCase, InviteMemberUseCase, RespondToInvitationUseCase, GetMyHousesUseCase, GetHouseUseCase, GetHouseMembersUseCase {
 
     override fun createHouse(command: CreateHouseCommand): House {
         val now = LocalDateTime.now(clock)
@@ -101,5 +104,27 @@ class HouseService(
             InvitationAction.REJECT, InvitationAction.REVOKE -> MemberStatus.REJECTED
         }
         return houseMemberRepository.save(member.copy(status = newStatus))
+    }
+
+    override fun getMyHouses(userId: UUID): List<House> =
+        houseRepository.findAllByOwnerId(userId)
+
+    override fun getHouse(houseId: UUID, requestingUserId: UUID): House {
+        val house = houseRepository.findById(houseId) ?: throw HouseNotFoundException(houseId)
+        checkActiveMember(houseId, requestingUserId)
+        return house
+    }
+
+    override fun getHouseMembers(houseId: UUID, requestingUserId: UUID): List<HouseMember> {
+        houseRepository.findById(houseId) ?: throw HouseNotFoundException(houseId)
+        checkActiveMember(houseId, requestingUserId)
+        return houseMemberRepository.findAllByHouseId(houseId)
+    }
+
+    private fun checkActiveMember(houseId: UUID, userId: UUID) {
+        val member = houseMemberRepository.findByHouseIdAndUserId(houseId, userId)
+        if (member == null || member.status != MemberStatus.ACTIVE) {
+            throw UnauthorizedMemberOperationException("Only active house members can view this resource")
+        }
     }
 }

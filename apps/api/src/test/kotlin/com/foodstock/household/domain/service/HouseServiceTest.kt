@@ -343,4 +343,117 @@ class HouseServiceTest {
             )
         }
     }
+
+    @Test
+    fun `getMyHouses returns houses owned by user`() {
+        val userId = UUID.randomUUID()
+        val now = LocalDateTime.now(fixedClock)
+        val house = House(id = UUID.randomUUID(), name = "Casa", ownerId = userId, createdAt = now, updatedAt = now)
+        whenever(houseRepository.findAllByOwnerId(userId)).thenReturn(listOf(house))
+
+        val result = service.getMyHouses(userId)
+
+        assertEquals(1, result.size)
+        assertEquals(house.id, result[0].id)
+        assertEquals(userId, result[0].ownerId)
+    }
+
+    @Test
+    fun `getMyHouses returns empty list when user owns no houses`() {
+        val userId = UUID.randomUUID()
+        whenever(houseRepository.findAllByOwnerId(userId)).thenReturn(emptyList())
+
+        val result = service.getMyHouses(userId)
+
+        assertEquals(0, result.size)
+    }
+
+    @Test
+    fun `getHouse returns house for active member`() {
+        val houseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val now = LocalDateTime.now(fixedClock)
+        val house = House(id = houseId, name = "Casa", ownerId = userId, createdAt = now, updatedAt = now)
+        val member = HouseMember(id = UUID.randomUUID(), houseId = houseId, userId = userId, role = MemberRole.OWNER, status = MemberStatus.ACTIVE, createdAt = now)
+        whenever(houseRepository.findById(houseId)).thenReturn(house)
+        whenever(houseMemberRepository.findByHouseIdAndUserId(houseId, userId)).thenReturn(member)
+
+        val result = service.getHouse(houseId, userId)
+
+        assertEquals(houseId, result.id)
+        assertEquals("Casa", result.name)
+    }
+
+    @Test
+    fun `getHouse throws HouseNotFoundException when house does not exist`() {
+        val houseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        whenever(houseRepository.findById(houseId)).thenReturn(null)
+
+        assertThrows<HouseNotFoundException> { service.getHouse(houseId, userId) }
+    }
+
+    @Test
+    fun `getHouse throws UnauthorizedMemberOperationException when user has no membership`() {
+        val houseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val now = LocalDateTime.now(fixedClock)
+        val house = House(id = houseId, name = "Casa", ownerId = UUID.randomUUID(), createdAt = now, updatedAt = now)
+        whenever(houseRepository.findById(houseId)).thenReturn(house)
+        whenever(houseMemberRepository.findByHouseIdAndUserId(houseId, userId)).thenReturn(null)
+
+        assertThrows<UnauthorizedMemberOperationException> { service.getHouse(houseId, userId) }
+    }
+
+    @Test
+    fun `getHouse throws UnauthorizedMemberOperationException when member is not ACTIVE`() {
+        val houseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val now = LocalDateTime.now(fixedClock)
+        val house = House(id = houseId, name = "Casa", ownerId = UUID.randomUUID(), createdAt = now, updatedAt = now)
+        val member = HouseMember(id = UUID.randomUUID(), houseId = houseId, userId = userId, role = MemberRole.MEMBER, status = MemberStatus.PENDING, createdAt = now)
+        whenever(houseRepository.findById(houseId)).thenReturn(house)
+        whenever(houseMemberRepository.findByHouseIdAndUserId(houseId, userId)).thenReturn(member)
+
+        assertThrows<UnauthorizedMemberOperationException> { service.getHouse(houseId, userId) }
+    }
+
+    @Test
+    fun `getHouseMembers returns members for active member`() {
+        val houseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val now = LocalDateTime.now(fixedClock)
+        val house = House(id = houseId, name = "Casa", ownerId = userId, createdAt = now, updatedAt = now)
+        val member = HouseMember(id = UUID.randomUUID(), houseId = houseId, userId = userId, role = MemberRole.OWNER, status = MemberStatus.ACTIVE, createdAt = now)
+        whenever(houseRepository.findById(houseId)).thenReturn(house)
+        whenever(houseMemberRepository.findByHouseIdAndUserId(houseId, userId)).thenReturn(member)
+        whenever(houseMemberRepository.findAllByHouseId(houseId)).thenReturn(listOf(member))
+
+        val result = service.getHouseMembers(houseId, userId)
+
+        assertEquals(1, result.size)
+        assertEquals(userId, result[0].userId)
+        assertEquals(MemberStatus.ACTIVE, result[0].status)
+    }
+
+    @Test
+    fun `getHouseMembers throws HouseNotFoundException when house does not exist`() {
+        val houseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        whenever(houseRepository.findById(houseId)).thenReturn(null)
+
+        assertThrows<HouseNotFoundException> { service.getHouseMembers(houseId, userId) }
+    }
+
+    @Test
+    fun `getHouseMembers throws UnauthorizedMemberOperationException when user is not active member`() {
+        val houseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val now = LocalDateTime.now(fixedClock)
+        val house = House(id = houseId, name = "Casa", ownerId = UUID.randomUUID(), createdAt = now, updatedAt = now)
+        whenever(houseRepository.findById(houseId)).thenReturn(house)
+        whenever(houseMemberRepository.findByHouseIdAndUserId(houseId, userId)).thenReturn(null)
+
+        assertThrows<UnauthorizedMemberOperationException> { service.getHouseMembers(houseId, userId) }
+    }
 }
