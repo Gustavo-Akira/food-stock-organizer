@@ -183,7 +183,7 @@ interface RestockItemsPort {
 
 Implements all six new use cases in addition to existing ones.
 
-### Authorization helpers (private)
+### Private helpers
 
 ```kotlin
 private fun requireAdminOrOwner(houseId: UUID, userId: UUID)
@@ -191,7 +191,15 @@ private fun requireAdminOrOwner(houseId: UUID, userId: UUID)
 
 private fun requireActiveMember(houseId: UUID, userId: UUID)
 // calls memberRolePort.getRole; throws UnauthorizedMemberOperationException if null
+
+private fun assertVersion(current: Long, provided: Long) {
+    if (current != provided) throw OptimisticLockException("Shopping list version mismatch")
+}
 ```
+
+`assertVersion` is called immediately after loading the list, before any mutation. It is a fail-fast guard that avoids a DB round-trip when the client is already known to have a stale view. JPA's `@Version` still enforces the constraint at the DB level as a second line of defence (handles races between the read and the save). Both paths resolve to `409 Conflict` in `GlobalExceptionHandler`.
+
+`OptimisticLockException` here is `jakarta.persistence.OptimisticLockException`. The handler catches both it and Spring's `ObjectOptimisticLockingFailureException`.
 
 ### State Transition Logic
 
@@ -257,7 +265,8 @@ Implemented in `InventoryItemJpaRepository` via a `@Modifying @Query`.
 | `ShoppingItemNotFoundException` | 404 | new |
 | `InvalidShoppingListStateException` | 409 | new — illegal status transition |
 | `InvalidOperationException` | 409 | existing — used for duplicate `inventoryItemId` |
-| `ObjectOptimisticLockingFailureException` | 409 | Spring/JPA — stale `version` on write |
+| `jakarta.persistence.OptimisticLockException` | 409 | thrown by `assertVersion` helper — stale version detected before save |
+| `ObjectOptimisticLockingFailureException` | 409 | Spring/JPA — stale version detected at DB write (race condition) |
 | `UnauthorizedMemberOperationException` | 403 | existing |
 
 `InvalidShoppingListStateException`, `ShoppingItemNotFoundException`, and `ObjectOptimisticLockingFailureException` must be registered in `GlobalExceptionHandler`.
