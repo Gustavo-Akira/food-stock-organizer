@@ -111,4 +111,63 @@ class InventoryServiceTest {
             service.updateQuantity(UpdateItemQuantityCommand(itemId = itemId, quantityLevel = QuantityLevel.ENOUGH))
         }
     }
+
+    @Test
+    fun `getInventory returns all items when no filter provided`() {
+        val houseId = UUID.randomUUID()
+        val item = InventoryItem(
+            id = UUID.randomUUID(), houseId = houseId, name = "Arroz",
+            category = Category.FOOD, quantityLevel = QuantityLevel.PLENTY,
+            expiryDate = null, notes = null,
+            createdAt = LocalDateTime.now(fixedClock), updatedAt = LocalDateTime.now(fixedClock)
+        )
+        whenever(inventoryRepository.findAllByHouseId(houseId)).thenReturn(listOf(item))
+
+        val result = service.getInventory(houseId, null)
+
+        assertEquals(1, result.size)
+        assertEquals(item.id, result[0].id)
+    }
+
+    @Test
+    fun `getInventory filters by quantityLevel when provided`() {
+        val houseId = UUID.randomUUID()
+        val item = InventoryItem(
+            id = UUID.randomUUID(), houseId = houseId, name = "Arroz",
+            category = Category.FOOD, quantityLevel = QuantityLevel.RUNNING_OUT,
+            expiryDate = null, notes = null,
+            createdAt = LocalDateTime.now(fixedClock), updatedAt = LocalDateTime.now(fixedClock)
+        )
+        whenever(inventoryRepository.findAllByHouseIdAndQuantityLevel(houseId, QuantityLevel.RUNNING_OUT))
+            .thenReturn(listOf(item))
+
+        val result = service.getInventory(houseId, QuantityLevel.RUNNING_OUT)
+
+        assertEquals(1, result.size)
+        assertEquals(QuantityLevel.RUNNING_OUT, result[0].quantityLevel)
+    }
+
+    @Test
+    fun `getInventoryItem returns item by id`() {
+        val itemId = UUID.randomUUID()
+        val item = InventoryItem(
+            id = itemId, houseId = UUID.randomUUID(), name = "Arroz",
+            category = Category.FOOD, quantityLevel = QuantityLevel.PLENTY,
+            expiryDate = null, notes = null,
+            createdAt = LocalDateTime.now(fixedClock), updatedAt = LocalDateTime.now(fixedClock)
+        )
+        whenever(inventoryRepository.findById(itemId)).thenReturn(item)
+
+        val result = service.getInventoryItem(itemId)
+
+        assertEquals(itemId, result.id)
+    }
+
+    @Test
+    fun `getInventoryItem throws ItemNotFoundException when item does not exist`() {
+        val itemId = UUID.randomUUID()
+        whenever(inventoryRepository.findById(itemId)).thenReturn(null)
+
+        assertThrows<ItemNotFoundException> { service.getInventoryItem(itemId) }
+    }
 }

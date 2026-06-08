@@ -6,7 +6,10 @@ import com.foodstock.inventory.adapter.`in`.dto.UpdateQuantityRequest
 import com.foodstock.inventory.domain.model.Category
 import com.foodstock.inventory.domain.model.InventoryItem
 import com.foodstock.inventory.domain.model.QuantityLevel
+import com.foodstock.inventory.domain.exception.ItemNotFoundException
 import com.foodstock.inventory.domain.port.`in`.AddItemUseCase
+import com.foodstock.inventory.domain.port.`in`.GetInventoryItemUseCase
+import com.foodstock.inventory.domain.port.`in`.GetInventoryUseCase
 import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityUseCase
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
@@ -17,6 +20,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import java.time.LocalDate
@@ -38,6 +42,12 @@ class InventoryControllerTest {
 
     @MockBean
     private lateinit var updateItemQuantityUseCase: UpdateItemQuantityUseCase
+
+    @MockBean
+    private lateinit var getInventoryUseCase: GetInventoryUseCase
+
+    @MockBean
+    private lateinit var getInventoryItemUseCase: GetInventoryItemUseCase
 
     @Test
     fun `addItem returns created inventory item response`() {
@@ -124,6 +134,76 @@ class InventoryControllerTest {
             .andExpect {
                 status { isBadRequest() }
             }
+    }
+
+    @Test
+    fun `getInventory returns all items for house`() {
+        val houseId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        val item = inventoryItem(quantityLevel = QuantityLevel.PLENTY)
+        whenever(getInventoryUseCase.getInventory(houseId, null)).thenReturn(listOf(item))
+
+        mockMvc.get("/api/v1/inventory") {
+            header("X-House-Id", houseId.toString())
+        }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$[0].id") { value(item.id.toString()) }
+                jsonPath("$[0].houseId") { value(houseId.toString()) }
+                jsonPath("$[0].quantityLevel") { value("PLENTY") }
+            }
+    }
+
+    @Test
+    fun `getInventory filters by quantityLevel`() {
+        val houseId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        val item = inventoryItem(quantityLevel = QuantityLevel.RUNNING_OUT)
+        whenever(getInventoryUseCase.getInventory(houseId, QuantityLevel.RUNNING_OUT)).thenReturn(listOf(item))
+
+        mockMvc.get("/api/v1/inventory?quantityLevel=RUNNING_OUT") {
+            header("X-House-Id", houseId.toString())
+        }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$[0].quantityLevel") { value("RUNNING_OUT") }
+            }
+    }
+
+    @Test
+    fun `getInventory returns 400 for invalid quantityLevel value`() {
+        mockMvc.get("/api/v1/inventory?quantityLevel=INVALID") {
+            header("X-House-Id", UUID.randomUUID().toString())
+        }
+            .andExpect { status { isBadRequest() } }
+    }
+
+    @Test
+    fun `getInventory returns 400 when X-House-Id header is missing`() {
+        mockMvc.get("/api/v1/inventory")
+            .andExpect { status { isBadRequest() } }
+    }
+
+    @Test
+    fun `getInventoryItem returns item by id`() {
+        val itemId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val item = inventoryItem(id = itemId, quantityLevel = QuantityLevel.PLENTY)
+        whenever(getInventoryItemUseCase.getInventoryItem(itemId)).thenReturn(item)
+
+        mockMvc.get("/api/v1/inventory/$itemId")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.id") { value(itemId.toString()) }
+                jsonPath("$.name") { value("Arroz") }
+                jsonPath("$.quantityLevel") { value("PLENTY") }
+            }
+    }
+
+    @Test
+    fun `getInventoryItem returns 404 when item does not exist`() {
+        val itemId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        whenever(getInventoryItemUseCase.getInventoryItem(itemId)).thenThrow(ItemNotFoundException(itemId))
+
+        mockMvc.get("/api/v1/inventory/$itemId")
+            .andExpect { status { isNotFound() } }
     }
 
     private fun inventoryItem(
