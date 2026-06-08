@@ -64,6 +64,31 @@ Item mutations on a `COMPLETED` or `CANCELLED` list return `409 Conflict`.
 
 Add `CANCELLED`. Stored as `VARCHAR(50)` in the DB — no Flyway migration needed.
 
+### `ShoppingList` domain model — add `version`
+
+```kotlin
+data class ShoppingList(
+    ...
+    val version: Long  // optimistic lock counter; starts at 0
+)
+```
+
+`ShoppingListResponse` exposes `version` so clients can echo it back on write operations.
+
+### Optimistic Locking
+
+`ShoppingListJpaEntity` gains `@Version val version: Long`. JPA increments it on every `save`. A save with a stale version throws `ObjectOptimisticLockingFailureException` → `409 Conflict` in `GlobalExceptionHandler`.
+
+All **state-transition commands** and **item-mutation commands** include a `listVersion: Long` field — the client's optimistic lock token. JPA's `@Version` enforces the constraint at the DB level.
+
+All **item mutations** save an updated `ShoppingList` (bumping `updatedAt` + `version`) so that concurrent item edits on the same list are also protected.
+
+**Flyway migration required:** `V2__add_shopping_list_version.sql`
+
+```sql
+ALTER TABLE shopping_lists ADD COLUMN version BIGINT NOT NULL DEFAULT 0;
+```
+
 ### `ShoppingListRepository` — new methods
 
 ```kotlin
@@ -83,19 +108,19 @@ fun deleteItem(itemId: UUID)
 
 ```kotlin
 // StartShoppingUseCase.kt
-data class StartShoppingCommand(val listId: UUID, val userId: UUID)
+data class StartShoppingCommand(val listId: UUID, val userId: UUID, val listVersion: Long)
 interface StartShoppingUseCase {
     fun start(command: StartShoppingCommand): ShoppingList
 }
 
 // CompleteShoppingUseCase.kt
-data class CompleteShoppingCommand(val listId: UUID, val userId: UUID)
+data class CompleteShoppingCommand(val listId: UUID, val userId: UUID, val listVersion: Long)
 interface CompleteShoppingUseCase {
     fun complete(command: CompleteShoppingCommand): ShoppingList
 }
 
 // CancelShoppingUseCase.kt
-data class CancelShoppingCommand(val listId: UUID, val userId: UUID)
+data class CancelShoppingCommand(val listId: UUID, val userId: UUID, val listVersion: Long)
 interface CancelShoppingUseCase {
     fun cancel(command: CancelShoppingCommand): ShoppingList
 }
@@ -106,7 +131,7 @@ interface CancelShoppingUseCase {
 ```kotlin
 // AddShoppingItemUseCase.kt
 data class AddShoppingItemCommand(
-    val listId: UUID, val userId: UUID,
+    val listId: UUID, val userId: UUID, val listVersion: Long,
     val name: String, val quantity: Int,
     val inventoryItemId: UUID? = null
 )
@@ -115,14 +140,16 @@ interface AddShoppingItemUseCase {
 }
 
 // RemoveShoppingItemUseCase.kt
-data class RemoveShoppingItemCommand(val listId: UUID, val itemId: UUID, val userId: UUID)
+data class RemoveShoppingItemCommand(
+    val listId: UUID, val itemId: UUID, val userId: UUID, val listVersion: Long
+)
 interface RemoveShoppingItemUseCase {
     fun removeItem(command: RemoveShoppingItemCommand)
 }
 
 // UpdateShoppingItemUseCase.kt
 data class UpdateShoppingItemCommand(
-    val listId: UUID, val itemId: UUID, val userId: UUID,
+    val listId: UUID, val itemId: UUID, val userId: UUID, val listVersion: Long,
     val quantity: Int? = null, val checked: Boolean? = null
 )
 interface UpdateShoppingItemUseCase {
@@ -230,9 +257,10 @@ Implemented in `InventoryItemJpaRepository` via a `@Modifying @Query`.
 | `ShoppingItemNotFoundException` | 404 | new |
 | `InvalidShoppingListStateException` | 409 | new — illegal status transition |
 | `InvalidOperationException` | 409 | existing — used for duplicate `inventoryItemId` |
+| `ObjectOptimisticLockingFailureException` | 409 | Spring/JPA — stale `version` on write |
 | `UnauthorizedMemberOperationException` | 403 | existing |
 
-`InvalidShoppingListStateException` and `ShoppingItemNotFoundException` are new and must be registered in `GlobalExceptionHandler`.
+`InvalidShoppingListStateException`, `ShoppingItemNotFoundException`, and `ObjectOptimisticLockingFailureException` must be registered in `GlobalExceptionHandler`.
 
 ---
 
