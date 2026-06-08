@@ -3,6 +3,7 @@ package com.foodstock.household.adapter.`in`
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.foodstock.household.adapter.`in`.dto.CreateHouseRequest
 import com.foodstock.household.adapter.`in`.dto.InviteMemberRequest
+import com.foodstock.household.domain.exception.HouseNotFoundException
 import com.foodstock.household.domain.exception.UnauthorizedMemberOperationException
 import com.foodstock.household.domain.model.House
 import com.foodstock.household.domain.model.HouseMember
@@ -10,6 +11,9 @@ import com.foodstock.household.domain.model.MemberRole
 import com.foodstock.household.domain.model.MemberStatus
 import com.foodstock.household.adapter.`in`.dto.RespondToInvitationRequest
 import com.foodstock.household.domain.port.`in`.CreateHouseUseCase
+import com.foodstock.household.domain.port.`in`.GetHouseMembersUseCase
+import com.foodstock.household.domain.port.`in`.GetHouseUseCase
+import com.foodstock.household.domain.port.`in`.GetMyHousesUseCase
 import com.foodstock.household.domain.port.`in`.InvitationAction
 import com.foodstock.household.domain.port.`in`.InviteMemberUseCase
 import com.foodstock.household.domain.port.`in`.RespondToInvitationUseCase
@@ -22,6 +26,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import java.time.LocalDateTime
@@ -45,6 +50,15 @@ class HouseControllerTest {
 
     @MockBean
     private lateinit var respondToInvitationUseCase: RespondToInvitationUseCase
+
+    @MockBean
+    private lateinit var getMyHousesUseCase: GetMyHousesUseCase
+
+    @MockBean
+    private lateinit var getHouseUseCase: GetHouseUseCase
+
+    @MockBean
+    private lateinit var getHouseMembersUseCase: GetHouseMembersUseCase
 
     @Test
     fun `createHouse returns created house`() {
@@ -200,5 +214,126 @@ class HouseControllerTest {
                 status { isForbidden() }
                 jsonPath("$.error") { value("Only the invited user can accept or reject an invitation") }
             }
+    }
+
+    @Test
+    fun `getMyHouses returns list of houses`() {
+        val userId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val houseId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        val now = LocalDateTime.parse("2026-06-07T10:00:00")
+        whenever(getMyHousesUseCase.getMyHouses(userId)).thenReturn(
+            listOf(House(id = houseId, name = "Casa", ownerId = userId, createdAt = now, updatedAt = now))
+        )
+
+        mockMvc.get("/api/v1/houses") {
+            header("X-User-Id", userId.toString())
+        }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$[0].id") { value(houseId.toString()) }
+                jsonPath("$[0].name") { value("Casa") }
+                jsonPath("$[0].ownerId") { value(userId.toString()) }
+            }
+    }
+
+    @Test
+    fun `getMyHouses returns 400 when X-User-Id header is missing`() {
+        mockMvc.get("/api/v1/houses")
+            .andExpect { status { isBadRequest() } }
+    }
+
+    @Test
+    fun `getHouse returns house for active member`() {
+        val userId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val houseId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        val now = LocalDateTime.parse("2026-06-07T10:00:00")
+        whenever(getHouseUseCase.getHouse(houseId, userId)).thenReturn(
+            House(id = houseId, name = "Casa", ownerId = userId, createdAt = now, updatedAt = now)
+        )
+
+        mockMvc.get("/api/v1/houses/$houseId") {
+            header("X-User-Id", userId.toString())
+        }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.id") { value(houseId.toString()) }
+                jsonPath("$.name") { value("Casa") }
+                jsonPath("$.ownerId") { value(userId.toString()) }
+            }
+    }
+
+    @Test
+    fun `getHouse returns 404 when house does not exist`() {
+        val userId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val houseId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        whenever(getHouseUseCase.getHouse(houseId, userId)).thenThrow(HouseNotFoundException(houseId))
+
+        mockMvc.get("/api/v1/houses/$houseId") {
+            header("X-User-Id", userId.toString())
+        }
+            .andExpect { status { isNotFound() } }
+    }
+
+    @Test
+    fun `getHouse returns 403 when user is not active member`() {
+        val userId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val houseId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        whenever(getHouseUseCase.getHouse(houseId, userId))
+            .thenThrow(UnauthorizedMemberOperationException("Only active house members can view this resource"))
+
+        mockMvc.get("/api/v1/houses/$houseId") {
+            header("X-User-Id", userId.toString())
+        }
+            .andExpect {
+                status { isForbidden() }
+                jsonPath("$.error") { value("Only active house members can view this resource") }
+            }
+    }
+
+    @Test
+    fun `getHouseMembers returns members list`() {
+        val userId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val houseId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        val memberId = UUID.fromString("33333333-3333-3333-3333-333333333333")
+        val now = LocalDateTime.parse("2026-06-07T10:00:00")
+        whenever(getHouseMembersUseCase.getHouseMembers(houseId, userId)).thenReturn(
+            listOf(HouseMember(id = memberId, houseId = houseId, userId = userId, role = MemberRole.OWNER, status = MemberStatus.ACTIVE, createdAt = now))
+        )
+
+        mockMvc.get("/api/v1/houses/$houseId/members") {
+            header("X-User-Id", userId.toString())
+        }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$[0].id") { value(memberId.toString()) }
+                jsonPath("$[0].userId") { value(userId.toString()) }
+                jsonPath("$[0].status") { value("ACTIVE") }
+                jsonPath("$[0].role") { value("OWNER") }
+            }
+    }
+
+    @Test
+    fun `getHouseMembers returns 404 when house does not exist`() {
+        val userId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val houseId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        whenever(getHouseMembersUseCase.getHouseMembers(houseId, userId)).thenThrow(HouseNotFoundException(houseId))
+
+        mockMvc.get("/api/v1/houses/$houseId/members") {
+            header("X-User-Id", userId.toString())
+        }
+            .andExpect { status { isNotFound() } }
+    }
+
+    @Test
+    fun `getHouseMembers returns 403 when user is not active member`() {
+        val userId = UUID.fromString("11111111-1111-1111-1111-111111111111")
+        val houseId = UUID.fromString("22222222-2222-2222-2222-222222222222")
+        whenever(getHouseMembersUseCase.getHouseMembers(houseId, userId))
+            .thenThrow(UnauthorizedMemberOperationException("Only active house members can view this resource"))
+
+        mockMvc.get("/api/v1/houses/$houseId/members") {
+            header("X-User-Id", userId.toString())
+        }
+            .andExpect { status { isForbidden() } }
     }
 }
