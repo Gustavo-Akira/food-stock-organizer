@@ -52,7 +52,8 @@ DELETE /api/v1/shopping-lists/{listId}/items/{itemId}    → 204
 PATCH  /api/v1/shopping-lists/{listId}/items/{itemId}    → 200 ShoppingListItemResponse
 ```
 
-`PATCH` body accepts `quantity` (Int, optional) and `checked` (Boolean, optional).  
+`PATCH` body accepts `quantity` (Int `>= 1`, optional) and `checked` (Boolean, optional).  
+At least one field must be present — an empty body returns `400 Bad Request`.  
 Item mutations on a `COMPLETED` or `CANCELLED` list return `409 Conflict`.
 
 ---
@@ -173,7 +174,7 @@ private fun requireActiveMember(houseId: UUID, userId: UUID)
 3. Assert `list.status == OPEN` — throw `InvalidShoppingListStateException` otherwise
 4. Save list with `status = SHOPPING`, `updatedAt = now`
 
-**`completeShopping`:**
+**`completeShopping`:** _(single `@Transactional` boundary — restock and status update are atomic; any failure rolls back both)_
 1. Load list — throw `ShoppingListNotFoundException` if absent
 2. `requireAdminOrOwner(list.houseId, userId)`
 3. Assert `list.status == SHOPPING` — throw `InvalidShoppingListStateException` otherwise
@@ -191,11 +192,18 @@ private fun requireActiveMember(houseId: UUID, userId: UUID)
 
 All item mutations share: load list → `requireActiveMember` → assert status is `OPEN` or `SHOPPING`.
 
-**`addItem`:** Create `ShoppingListItem` with new UUID, save via `shoppingListRepository.saveItem`.
+**`addItem`:**
+- If `inventoryItemId != null`: check for an existing item in the list with the same `inventoryItemId`; throw `InvalidOperationException` (409) if a duplicate is found.
+- Manual items (`inventoryItemId == null`) allow duplicates — they are free-form entries identified only by name.
+- Create `ShoppingListItem` with new UUID, save via `shoppingListRepository.saveItem`.
 
 **`removeItem`:** Load item via `findItemById` — throw `ShoppingItemNotFoundException` (404) if absent or item's `shoppingListId != listId`. Delete via `deleteItem`.
 
-**`updateItem`:** Load item; apply non-null fields from command; save via `updateItem`.
+**`updateItem`:**
+- If both `quantity` and `checked` are null in the command: rejected at the adapter layer before reaching the service (returns `400 Bad Request`).
+- `quantity`, if provided, must be `>= 1` — enforced at the DTO layer via `@field:Min(1)`; invalid values return `400`.
+- Load item via `findItemById` — throw `ShoppingItemNotFoundException` if absent or item belongs to a different list.
+- Apply non-null fields from command; save via `updateItem`.
 
 ---
 
@@ -216,14 +224,15 @@ Implemented in `InventoryItemJpaRepository` via a `@Modifying @Query`.
 
 ## Exception Handling
 
-| Exception | HTTP Status |
-|---|---|
-| `ShoppingListNotFoundException` | 404 |
-| `ShoppingItemNotFoundException` | 404 |
-| `InvalidShoppingListStateException` | 409 |
-| `UnauthorizedMemberOperationException` | 403 |
+| Exception | HTTP Status | Notes |
+|---|---|---|
+| `ShoppingListNotFoundException` | 404 | existing |
+| `ShoppingItemNotFoundException` | 404 | new |
+| `InvalidShoppingListStateException` | 409 | new — illegal status transition |
+| `InvalidOperationException` | 409 | existing — used for duplicate `inventoryItemId` |
+| `UnauthorizedMemberOperationException` | 403 | existing |
 
-`InvalidShoppingListStateException` is new and must be registered in `GlobalExceptionHandler`.
+`InvalidShoppingListStateException` and `ShoppingItemNotFoundException` are new and must be registered in `GlobalExceptionHandler`.
 
 ---
 
