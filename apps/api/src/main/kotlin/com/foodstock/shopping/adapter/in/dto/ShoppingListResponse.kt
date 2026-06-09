@@ -12,15 +12,11 @@ data class ShoppingListResponse(
     val status: ShoppingListStatus,
     val createdBy: UUID,
     val createdAt: LocalDateTime,
-    val updatedAt: LocalDateTime
+    val updatedAt: LocalDateTime,
+    val version: Long
 )
 
 fun ShoppingList.toResponse() = ShoppingListResponse(
-    id = id,
-    houseId = houseId,
-    name = name,
-    status = status,
-    createdBy = createdBy,
-    createdAt = createdAt,
-    updatedAt = updatedAt
+    id = id, houseId = houseId, name = name, status = status,
+    createdBy = createdBy, createdAt = createdAt, updatedAt = updatedAt, version = version
 )

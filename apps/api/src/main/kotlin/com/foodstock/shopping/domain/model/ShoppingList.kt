@@ -3,7 +3,7 @@ package com.foodstock.shopping.domain.model
 import java.time.LocalDateTime
 import java.util.UUID
 
-enum class ShoppingListStatus { OPEN, SHOPPING, COMPLETED }
+enum class ShoppingListStatus { OPEN, SHOPPING, COMPLETED, CANCELLED }
 
 data class ShoppingList(
     val id: UUID,
@@ -12,5 +12,6 @@ data class ShoppingList(
     val status: ShoppingListStatus,
     val createdBy: UUID,
     val createdAt: LocalDateTime,
-    val updatedAt: LocalDateTime
+    val updatedAt: LocalDateTime,
+    val version: Long = 0
 )
