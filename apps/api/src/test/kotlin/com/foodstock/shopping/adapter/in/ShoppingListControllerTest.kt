@@ -3,15 +3,25 @@ package com.foodstock.shopping.adapter.`in`
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.foodstock.shopping.adapter.`in`.dto.GenerateShoppingListRequest
 import com.foodstock.shopping.adapter.`in`.dto.ShoppingListResponse
+import com.foodstock.shopping.domain.exception.InvalidShoppingListStateException
+import com.foodstock.shopping.domain.exception.ShoppingItemNotFoundException
+import com.foodstock.shopping.domain.exception.ShoppingListAccessDeniedException
 import com.foodstock.shopping.domain.exception.ShoppingListNotFoundException
 import com.foodstock.shopping.domain.model.ShoppingList
 import com.foodstock.shopping.domain.model.ShoppingListItem
 import com.foodstock.shopping.domain.model.ShoppingListStatus
+import com.foodstock.shopping.domain.port.`in`.AddShoppingItemUseCase
+import com.foodstock.shopping.domain.port.`in`.CancelShoppingUseCase
+import com.foodstock.shopping.domain.port.`in`.CompleteShoppingUseCase
 import com.foodstock.shopping.domain.port.`in`.GenerateShoppingListUseCase
 import com.foodstock.shopping.domain.port.`in`.GetShoppingListUseCase
 import com.foodstock.shopping.domain.port.`in`.GetShoppingListsUseCase
+import com.foodstock.shopping.domain.port.`in`.RemoveShoppingItemUseCase
+import com.foodstock.shopping.domain.port.`in`.StartShoppingUseCase
+import com.foodstock.shopping.domain.port.`in`.UpdateShoppingItemUseCase
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
@@ -19,7 +29,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import java.time.LocalDateTime
 import java.util.UUID
@@ -42,6 +54,26 @@ class ShoppingListControllerTest {
 
     @MockBean
     private lateinit var getShoppingListUseCase: GetShoppingListUseCase
+
+    @MockBean
+    private lateinit var startShoppingUseCase: StartShoppingUseCase
+
+    @MockBean
+    private lateinit var completeShoppingUseCase: CompleteShoppingUseCase
+
+    @MockBean
+    private lateinit var cancelShoppingUseCase: CancelShoppingUseCase
+
+    @MockBean
+    private lateinit var addShoppingItemUseCase: AddShoppingItemUseCase
+
+    @MockBean
+    private lateinit var removeShoppingItemUseCase: RemoveShoppingItemUseCase
+
+    @MockBean
+    private lateinit var updateShoppingItemUseCase: UpdateShoppingItemUseCase
+
+    // --- Existing tests ---
 
     @Test
     fun `generateList returns created shopping list`() {
@@ -152,5 +184,214 @@ class ShoppingListControllerTest {
 
         mockMvc.get("/api/v1/shopping-lists/$listId")
             .andExpect { status { isNotFound() } }
+    }
+
+    // --- State transition tests ---
+
+    @Test
+    fun `start returns 200 with SHOPPING status`() {
+        val listId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val userId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        val houseId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc")
+        val now = LocalDateTime.parse("2026-06-07T20:00:00")
+        whenever(startShoppingUseCase.start(any())).thenReturn(
+            ShoppingList(listId, houseId, "Weekly", ShoppingListStatus.SHOPPING, userId, now, now, version = 1)
+        )
+
+        mockMvc.post("/api/v1/shopping-lists/$listId/start") {
+            header("X-User-Id", userId.toString())
+            header("X-List-Version", "0")
+        }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.status") { value("SHOPPING") }
+                jsonPath("$.version") { value(1) }
+            }
+    }
+
+    @Test
+    fun `start returns 404 when list not found`() {
+        val listId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val userId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        whenever(startShoppingUseCase.start(any())).thenThrow(ShoppingListNotFoundException(listId))
+
+        mockMvc.post("/api/v1/shopping-lists/$listId/start") {
+            header("X-User-Id", userId.toString())
+            header("X-List-Version", "0")
+        }
+            .andExpect { status { isNotFound() } }
+    }
+
+    @Test
+    fun `start returns 409 when list is in wrong state`() {
+        val listId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val userId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        whenever(startShoppingUseCase.start(any())).thenThrow(InvalidShoppingListStateException("Cannot start"))
+
+        mockMvc.post("/api/v1/shopping-lists/$listId/start") {
+            header("X-User-Id", userId.toString())
+            header("X-List-Version", "0")
+        }
+            .andExpect { status { isConflict() } }
+    }
+
+    @Test
+    fun `start returns 403 when caller is not owner`() {
+        val listId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val userId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        whenever(startShoppingUseCase.start(any())).thenThrow(ShoppingListAccessDeniedException("Not owner"))
+
+        mockMvc.post("/api/v1/shopping-lists/$listId/start") {
+            header("X-User-Id", userId.toString())
+            header("X-List-Version", "0")
+        }
+            .andExpect { status { isForbidden() } }
+    }
+
+    @Test
+    fun `complete returns 200 with COMPLETED status`() {
+        val listId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val userId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        val houseId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc")
+        val now = LocalDateTime.parse("2026-06-07T20:00:00")
+        whenever(completeShoppingUseCase.complete(any())).thenReturn(
+            ShoppingList(listId, houseId, "Weekly", ShoppingListStatus.COMPLETED, userId, now, now, version = 2)
+        )
+
+        mockMvc.post("/api/v1/shopping-lists/$listId/complete") {
+            header("X-User-Id", userId.toString())
+            header("X-List-Version", "1")
+        }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.status") { value("COMPLETED") }
+            }
+    }
+
+    @Test
+    fun `cancel returns 200 with CANCELLED status`() {
+        val listId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val userId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        val houseId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc")
+        val now = LocalDateTime.parse("2026-06-07T20:00:00")
+        whenever(cancelShoppingUseCase.cancel(any())).thenReturn(
+            ShoppingList(listId, houseId, "Weekly", ShoppingListStatus.CANCELLED, userId, now, now, version = 1)
+        )
+
+        mockMvc.post("/api/v1/shopping-lists/$listId/cancel") {
+            header("X-User-Id", userId.toString())
+            header("X-List-Version", "0")
+        }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.status") { value("CANCELLED") }
+            }
+    }
+
+    // --- Item mutation tests ---
+
+    @Test
+    fun `addItem returns 201 with new item`() {
+        val listId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val userId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        val itemId = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd")
+        val now = LocalDateTime.parse("2026-06-07T20:00:00")
+        val item = ShoppingListItem(itemId, listId, null, "Bread", 2, false, now)
+        whenever(addShoppingItemUseCase.addItem(any())).thenReturn(item)
+
+        mockMvc.post("/api/v1/shopping-lists/$listId/items") {
+            contentType = MediaType.APPLICATION_JSON
+            header("X-User-Id", userId.toString())
+            header("X-List-Version", "0")
+            content = objectMapper.writeValueAsString(mapOf("name" to "Bread", "quantity" to 2))
+        }
+            .andExpect {
+                status { isCreated() }
+                jsonPath("$.id") { value(itemId.toString()) }
+                jsonPath("$.name") { value("Bread") }
+                jsonPath("$.quantity") { value(2) }
+                jsonPath("$.checked") { value(false) }
+            }
+    }
+
+    @Test
+    fun `addItem returns 409 when list is in terminal state`() {
+        val listId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val userId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        whenever(addShoppingItemUseCase.addItem(any())).thenThrow(InvalidShoppingListStateException("Cannot modify"))
+
+        mockMvc.post("/api/v1/shopping-lists/$listId/items") {
+            contentType = MediaType.APPLICATION_JSON
+            header("X-User-Id", userId.toString())
+            header("X-List-Version", "0")
+            content = objectMapper.writeValueAsString(mapOf("name" to "Bread", "quantity" to 1))
+        }
+            .andExpect { status { isConflict() } }
+    }
+
+    @Test
+    fun `removeItem returns 204`() {
+        val listId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val itemId = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd")
+        val userId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+
+        mockMvc.delete("/api/v1/shopping-lists/$listId/items/$itemId") {
+            header("X-User-Id", userId.toString())
+            header("X-List-Version", "0")
+        }
+            .andExpect { status { isNoContent() } }
+
+        verify(removeShoppingItemUseCase).removeItem(any())
+    }
+
+    @Test
+    fun `removeItem returns 404 when item not found`() {
+        val listId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val itemId = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd")
+        val userId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        whenever(removeShoppingItemUseCase.removeItem(any())).thenThrow(ShoppingItemNotFoundException(itemId))
+
+        mockMvc.delete("/api/v1/shopping-lists/$listId/items/$itemId") {
+            header("X-User-Id", userId.toString())
+            header("X-List-Version", "0")
+        }
+            .andExpect { status { isNotFound() } }
+    }
+
+    @Test
+    fun `updateItem returns 200 with updated fields`() {
+        val listId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val itemId = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd")
+        val userId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        val now = LocalDateTime.parse("2026-06-07T20:00:00")
+        val item = ShoppingListItem(itemId, listId, null, "Bread", 3, true, now)
+        whenever(updateShoppingItemUseCase.updateItem(any())).thenReturn(item)
+
+        mockMvc.patch("/api/v1/shopping-lists/$listId/items/$itemId") {
+            contentType = MediaType.APPLICATION_JSON
+            header("X-User-Id", userId.toString())
+            header("X-List-Version", "1")
+            content = objectMapper.writeValueAsString(mapOf("quantity" to 3, "checked" to true))
+        }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.quantity") { value(3) }
+                jsonPath("$.checked") { value(true) }
+            }
+    }
+
+    @Test
+    fun `updateItem returns 400 when body has no fields`() {
+        val listId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val itemId = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd")
+        val userId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+
+        mockMvc.patch("/api/v1/shopping-lists/$listId/items/$itemId") {
+            contentType = MediaType.APPLICATION_JSON
+            header("X-User-Id", userId.toString())
+            header("X-List-Version", "0")
+            content = "{}"
+        }
+            .andExpect { status { isBadRequest() } }
     }
 }
