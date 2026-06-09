@@ -10,4 +10,5 @@ interface InventoryRepository {
     fun findAllByHouseId(houseId: UUID): List<InventoryItem>
     fun findAllByHouseIdAndQuantityLevel(houseId: UUID, level: QuantityLevel): List<InventoryItem>
     fun deleteById(id: UUID)
+    fun updateQuantityLevel(id: UUID, level: QuantityLevel)
 }

@@ -29,17 +29,21 @@ class ShoppingListJpaEntity(
     val createdAt: LocalDateTime,
 
     @Column(name = "updated_at", nullable = false)
-    val updatedAt: LocalDateTime
+    val updatedAt: LocalDateTime,
+
+    @Version
+    val version: Long = 0
 ) {
     fun toDomain(): ShoppingList = ShoppingList(
         id = id, houseId = houseId, name = name, status = status,
-        createdBy = createdBy, createdAt = createdAt, updatedAt = updatedAt
+        createdBy = createdBy, createdAt = createdAt, updatedAt = updatedAt, version = version
     )
 
     companion object {
         fun fromDomain(list: ShoppingList) = ShoppingListJpaEntity(
             id = list.id, houseId = list.houseId, name = list.name, status = list.status,
-            createdBy = list.createdBy, createdAt = list.createdAt, updatedAt = list.updatedAt
+            createdBy = list.createdBy, createdAt = list.createdAt, updatedAt = list.updatedAt,
+            version = list.version
         )
     }
 }

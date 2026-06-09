@@ -4,6 +4,9 @@ import com.foodstock.common.exception.ForbiddenOperationException
 import com.foodstock.common.exception.InvalidOperationException
 import com.foodstock.common.exception.ResourceNotFoundException
 import com.foodstock.common.exception.UnauthorizedException
+import com.foodstock.shopping.domain.exception.InvalidShoppingListStateException
+import com.foodstock.shopping.domain.exception.ShoppingItemNotFoundException
+import jakarta.persistence.OptimisticLockException
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
@@ -12,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RestController
+import java.util.UUID
 
 @RestController
 class ExceptionStubController {
@@ -26,6 +30,15 @@ class ExceptionStubController {
 
     @GetMapping("/test/unauthorized")
     fun throwUnauthorized(): String = throw UnauthorizedException("unauthorized")
+
+    @GetMapping("/test/invalid-state")
+    fun throwInvalidState(): String = throw InvalidShoppingListStateException("invalid state")
+
+    @GetMapping("/test/optimistic-lock")
+    fun throwOptimisticLock(): String = throw OptimisticLockException("concurrent modification")
+
+    @GetMapping("/test/item-not-found")
+    fun throwItemNotFound(): String = throw ShoppingItemNotFoundException(UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"))
 }
 
 @WebMvcTest(ExceptionStubController::class)
@@ -69,5 +82,23 @@ class GlobalExceptionHandlerTest {
                 status { isUnauthorized() }
                 jsonPath("$.error") { value("unauthorized") }
             }
+    }
+
+    @Test
+    fun `returns 409 for InvalidShoppingListStateException`() {
+        mockMvc.get("/test/invalid-state")
+            .andExpect { status { isConflict() } }
+    }
+
+    @Test
+    fun `returns 409 for OptimisticLockException`() {
+        mockMvc.get("/test/optimistic-lock")
+            .andExpect { status { isConflict() } }
+    }
+
+    @Test
+    fun `returns 404 for ShoppingItemNotFoundException`() {
+        mockMvc.get("/test/item-not-found")
+            .andExpect { status { isNotFound() } }
     }
 }
