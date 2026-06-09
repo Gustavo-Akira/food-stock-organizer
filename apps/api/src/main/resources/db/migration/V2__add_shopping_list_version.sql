@@ -1,0 +1,1 @@
+ALTER TABLE shopping_lists ADD COLUMN version BIGINT NOT NULL DEFAULT 0;
