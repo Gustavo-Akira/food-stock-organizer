@@ -33,31 +33,27 @@ Export from `packages/shared/src/index.ts`:
 export * from './<domain>'
 ```
 
-### 2. Add API client helper to packages/shared
+### 2. Add an API client helper inside the feature folder
 
-Create `packages/shared/src/api/<domain>.ts`:
+Create `apps/web/src/features/<featureName>/api/<featureName>Api.ts` (and/or the mobile equivalent):
 
 ```typescript
-import axios from 'axios'
-import { <Entity>Schema } from '../<domain>'
-import type { <Entity> } from '../<domain>'
+import { apiClient } from '@food-stock/shared'
+import { <Entity>Schema } from '@food-stock/shared'
+import type { <Entity> } from '@food-stock/shared'
 
 export async function get<Entity>(id: string): Promise<<Entity>> {
-  const res = await axios.get(`/api/<context>/${id}`)
+  const res = await apiClient.get(`/api/<context>/${id}`)
   return <Entity>Schema.parse(res.data)
 }
 
 export async function create<Entity>(data: Omit<<Entity>, 'id'>): Promise<<Entity>> {
-  const res = await axios.post('/api/<context>', data)
+  const res = await apiClient.post('/api/<context>', data)
   return <Entity>Schema.parse(res.data)
 }
 ```
 
-Export from `packages/shared/src/index.ts`:
-
-```typescript
-export * from './api/<domain>'
-```
+The `apiClient` is the axios instance exported from `packages/shared`. Keeping API helpers in the feature folder (not in `packages/shared`) matches the existing project convention — `packages/shared` exports only types, schemas, and the base client.
 
 ### 3. Create the feature folder
 
@@ -74,7 +70,7 @@ Create `apps/web/src/features/<featureName>/use<Entity>.ts` (or `apps/mobile/src
 
 ```typescript
 import { useQuery } from '@tanstack/react-query'
-import { get<Entity> } from '@food-stock/shared'
+import { get<Entity> } from './api/<featureName>Api'
 
 export function use<Entity>(id: string) {
   return useQuery({
@@ -89,7 +85,7 @@ export function use<Entity>(id: string) {
 
 ```typescript
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { create<Entity> } from '@food-stock/shared'
+import { create<Entity> } from './api/<featureName>Api'
 import type { <Entity> } from '@food-stock/shared'
 
 export function useCreate<Entity>() {
@@ -194,5 +190,5 @@ If the mobile dev server is available: `npm --workspace @food-stock/mobile run s
 - Feature folder exists under `features/<featureName>/` with no imports from sibling feature folders
 - Zod schema and TypeScript type are exported from `packages/shared/src/index.ts`
 - React Query key is a string array starting with the entity name (e.g., `['<entity>', id]`)
-- API client functions use `<Entity>Schema.parse(res.data)` for runtime validation
+- API client helper exists at `features/<featureName>/api/<featureName>Api.ts` and uses `<Entity>Schema.parse(res.data)` for runtime validation
 - Route is registered in the router (web) or as a file in `src/app/` (mobile)

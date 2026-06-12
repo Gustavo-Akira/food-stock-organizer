@@ -157,6 +157,8 @@ CREATE TABLE <table_name> (
 Run: `./gradlew build`
 Expected: BUILD SUCCESSFUL (Flyway applies the migration and Hibernate validates the schema)
 
+> For the full set of Flyway rules (never modifying existing migrations, SQL patterns, etc.), see `docs/workflows/database-schema-change.md`.
+
 ### 8. Implement the JPA entity
 
 Create `apps/api/src/main/kotlin/com/foodstock/<context>/adapter/out/<Entity>Entity.kt`:
