@@ -8,6 +8,7 @@ Use this workflow when you are asked to add a new domain area that does not fit 
 - PostgreSQL is running (`docker compose -f infra/docker-compose.yml up -d`)
 - You know the name of the new context (referred to as `<context>` below, e.g., `notifications`)
 - You know the primary aggregate entity (referred to as `<Entity>` below, e.g., `Notification`)
+- You know the database table name (referred to as `<table_name>` below, e.g., `notification_items`). Convention: `<context>_items` for a single aggregate, `<context>_<entity>s` for multiple entities.
 
 ## Steps
 
@@ -85,9 +86,14 @@ Create `apps/api/src/test/kotlin/com/foodstock/<context>/domain/service/<Context
 package com.foodstock.<context>.domain.service
 
 import com.foodstock.<context>.domain.port.out.<Entity>Repository
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import java.time.Clock
+import java.util.UUID
 
 class <Context>ServiceTest {
     private val repository: <Entity>Repository = mock()
@@ -98,8 +104,12 @@ class <Context>ServiceTest {
     private val service = <Context>Service(repository, clock)
 
     @Test
-    fun `should do something`() {
-        // arrange / act / assert
+    fun `should save and return entity`() {
+        val entity = <Entity>(id = UUID.randomUUID())
+        whenever(repository.save(any())).thenReturn(entity)
+        val result = service.execute(entity.id)
+        assertEquals(entity.id, result.id)
+        verify(repository).save(any())
     }
 }
 ```
@@ -117,13 +127,14 @@ package com.foodstock.<context>.domain.service
 import com.foodstock.<context>.domain.port.`in`.Create<Entity>
 import com.foodstock.<context>.domain.port.out.<Entity>Repository
 import java.time.Clock
+import java.util.UUID
 
 class <Context>Service(
     private val repository: <Entity>Repository,
     private val clock: Clock
 ) : Create<Entity> {
-    override fun execute(/* params */): <Entity> {
-        TODO("implement")
+    override fun execute(id: UUID): <Entity> {
+        return repository.findById(id) ?: throw NoSuchElementException("Not found: $id")
     }
 }
 ```
@@ -131,7 +142,22 @@ class <Context>Service(
 Run: `./gradlew test --tests "*.<Context>ServiceTest"`
 Expected: PASS
 
-### 7. Implement the JPA entity
+### 7. Create the Flyway migration
+
+Before creating the JPA entity, create the migration file. Determine the next version number by listing `apps/api/src/main/resources/db/migration/`. Create `V{N}__create_<context>_schema.sql`:
+
+```sql
+CREATE TABLE <table_name> (
+    id UUID PRIMARY KEY,
+    -- add columns matching your domain model fields
+    created_at TIMESTAMP NOT NULL
+);
+```
+
+Run: `./gradlew build`
+Expected: BUILD SUCCESSFUL (Flyway applies the migration and Hibernate validates the schema)
+
+### 8. Implement the JPA entity
 
 Create `apps/api/src/main/kotlin/com/foodstock/<context>/adapter/out/<Entity>Entity.kt`:
 
@@ -162,7 +188,7 @@ class <Entity>Entity(
 }
 ```
 
-### 8. Implement the Spring Data JPA repository
+### 9. Implement the Spring Data JPA repository
 
 Create `apps/api/src/main/kotlin/com/foodstock/<context>/adapter/out/<Entity>JpaRepository.kt`:
 
@@ -175,7 +201,7 @@ import java.util.UUID
 interface <Entity>JpaRepository : JpaRepository<<Entity>Entity, UUID>
 ```
 
-### 9. Implement the repository adapter
+### 10. Implement the repository adapter
 
 Create `apps/api/src/main/kotlin/com/foodstock/<context>/adapter/out/<Entity>RepositoryAdapter.kt`:
 
@@ -197,7 +223,7 @@ class <Entity>RepositoryAdapter(
 }
 ```
 
-### 10. Wire everything in the config
+### 11. Wire everything in the config
 
 Create `apps/api/src/main/kotlin/com/foodstock/<context>/config/<Context>Config.kt`:
 
@@ -206,6 +232,7 @@ package com.foodstock.<context>.config
 
 import com.foodstock.<context>.adapter.out.<Entity>JpaRepository
 import com.foodstock.<context>.adapter.out.<Entity>RepositoryAdapter
+import com.foodstock.<context>.domain.port.out.<Entity>Repository
 import com.foodstock.<context>.domain.service.<Context>Service
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -214,40 +241,47 @@ import java.time.Clock
 @Configuration
 class <Context>Config {
     @Bean
-    fun <entity>Repository(jpa: <Entity>JpaRepository): <Entity>RepositoryAdapter =
+    fun <entity>Repository(jpa: <Entity>JpaRepository): <Entity>Repository =
         <Entity>RepositoryAdapter(jpa)
 
     @Bean
     fun <context>Service(
-        repository: <Entity>RepositoryAdapter,
+        repository: <Entity>Repository,
         clock: Clock
     ): <Context>Service = <Context>Service(repository, clock)
 }
 ```
 
-### 11. Write the controller slice test (failing)
+### 12. Write the controller slice test (failing)
 
 Create `apps/api/src/test/kotlin/com/foodstock/<context>/adapter/in/<Context>ControllerTest.kt`:
+
+> Note: If the project uses Spring Security, add `@AutoConfigureMockMvc(addFilters = false)` to disable auth filters in the slice test.
 
 ```kotlin
 package com.foodstock.<context>.adapter.`in`
 
+import com.foodstock.<context>.domain.port.`in`.Create<Entity>
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
+import org.springframework.boot.test.mock.mockito.MockBean
+import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
-import org.springframework.http.MediaType
 
 @WebMvcTest(<Context>Controller::class)
 class <Context>ControllerTest {
     @Autowired lateinit var mockMvc: MockMvc
+    @MockBean lateinit var create<Entity>: Create<Entity>
 
     @Test
     fun `POST api <context> returns 200`() {
+        whenever(create<Entity>.execute(/* any args */)).thenReturn(/* stub <Entity> */)
         mockMvc.post("/api/<context>") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{}"""
+            content = """{ /* fill with valid request fields */ }"""
         }.andExpect { status { isOk() } }
     }
 }
@@ -256,7 +290,7 @@ class <Context>ControllerTest {
 Run: `./gradlew test --tests "*.<Context>ControllerTest"`
 Expected: FAIL (class not found)
 
-### 12. Implement the controller
+### 13. Implement the controller
 
 Create `apps/api/src/main/kotlin/com/foodstock/<context>/adapter/in/<Context>Controller.kt`:
 
@@ -288,12 +322,12 @@ class <Context>Controller(
 Run: `./gradlew test --tests "*.<Context>ControllerTest"`
 Expected: PASS
 
-### 13. Run full test suite
+### 14. Run full test suite
 
 Run: `./gradlew test`
 Expected: BUILD SUCCESSFUL, no failures.
 
-### 14. Commit
+### 15. Commit
 
 ```bash
 git add apps/api/src/
