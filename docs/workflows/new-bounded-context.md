@@ -256,15 +256,18 @@ class <Context>Config {
 
 Create `apps/api/src/test/kotlin/com/foodstock/<context>/adapter/in/<Context>ControllerTest.kt`:
 
-> Note: If the project uses Spring Security, add `@AutoConfigureMockMvc(addFilters = false)` to disable auth filters in the slice test.
+> This project uses Spring Security on all routes except `/api/auth/**`. Add `@AutoConfigureMockMvc(addFilters = false)` to the test class to disable auth filters in the slice test:
 
 ```kotlin
 package com.foodstock.<context>.adapter.`in`
 
 import com.foodstock.<context>.domain.port.`in`.Create<Entity>
+import java.util.UUID
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.http.MediaType
@@ -272,13 +275,14 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
 
 @WebMvcTest(<Context>Controller::class)
+@AutoConfigureMockMvc(addFilters = false)
 class <Context>ControllerTest {
     @Autowired lateinit var mockMvc: MockMvc
     @MockBean lateinit var create<Entity>: Create<Entity>
 
     @Test
     fun `POST api <context> returns 200`() {
-        whenever(create<Entity>.execute(/* any args */)).thenReturn(/* stub <Entity> */)
+        whenever(create<Entity>.execute(any())).thenReturn(<Entity>(id = UUID.randomUUID()))
         mockMvc.post("/api/<context>") {
             contentType = MediaType.APPLICATION_JSON
             content = """{ /* fill with valid request fields */ }"""
