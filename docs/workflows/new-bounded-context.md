@@ -1,0 +1,308 @@
+# Workflow: New Bounded Context
+
+## Trigger
+Use this workflow when you are asked to add a new domain area that does not fit any of the four existing contexts: `auth`, `household`, `inventory`, `shopping`.
+
+## Prerequisites
+- `./gradlew build` passes locally
+- PostgreSQL is running (`docker compose -f infra/docker-compose.yml up -d`)
+- You know the name of the new context (referred to as `<context>` below, e.g., `notifications`)
+- You know the primary aggregate entity (referred to as `<Entity>` below, e.g., `Notification`)
+
+## Steps
+
+### 1. Create the package tree
+
+Create the following empty directories under `apps/api/src/main/kotlin/com/foodstock/<context>/`:
+
+```
+domain/model/
+domain/service/
+domain/port/in/
+domain/port/out/
+adapter/in/
+adapter/out/
+config/
+```
+
+And the mirror under `apps/api/src/test/kotlin/com/foodstock/<context>/`:
+
+```
+domain/service/
+adapter/in/
+```
+
+### 2. Define the domain model
+
+Create `apps/api/src/main/kotlin/com/foodstock/<context>/domain/model/<Entity>.kt`:
+
+```kotlin
+package com.foodstock.<context>.domain.model
+
+import java.util.UUID
+
+data class <Entity>(
+    val id: UUID,
+    // add domain fields here — no Spring, JPA, or Jackson annotations
+)
+```
+
+### 3. Define the in-port use case interface
+
+Create `apps/api/src/main/kotlin/com/foodstock/<context>/domain/port/in/<UseCase>.kt` for each use case. Example for a create use case:
+
+```kotlin
+package com.foodstock.<context>.domain.port.`in`
+
+import com.foodstock.<context>.domain.model.<Entity>
+
+interface Create<Entity> {
+    fun execute(/* params */): <Entity>
+}
+```
+
+### 4. Define the out-port repository interface
+
+Create `apps/api/src/main/kotlin/com/foodstock/<context>/domain/port/out/<Entity>Repository.kt`:
+
+```kotlin
+package com.foodstock.<context>.domain.port.out
+
+import com.foodstock.<context>.domain.model.<Entity>
+import java.util.UUID
+
+interface <Entity>Repository {
+    fun findById(id: UUID): <Entity>?
+    fun save(entity: <Entity>): <Entity>
+}
+```
+
+### 5. Write the service unit test (failing)
+
+Create `apps/api/src/test/kotlin/com/foodstock/<context>/domain/service/<Context>ServiceTest.kt`:
+
+```kotlin
+package com.foodstock.<context>.domain.service
+
+import com.foodstock.<context>.domain.port.out.<Entity>Repository
+import org.junit.jupiter.api.Test
+import org.mockito.kotlin.mock
+import java.time.Clock
+
+class <Context>ServiceTest {
+    private val repository: <Entity>Repository = mock()
+    private val clock: Clock = Clock.fixed(
+        java.time.Instant.parse("2024-01-01T00:00:00Z"),
+        java.time.ZoneOffset.UTC
+    )
+    private val service = <Context>Service(repository, clock)
+
+    @Test
+    fun `should do something`() {
+        // arrange / act / assert
+    }
+}
+```
+
+Run: `./gradlew test --tests "*.<Context>ServiceTest"`
+Expected: FAIL (class not found)
+
+### 6. Implement the domain service
+
+Create `apps/api/src/main/kotlin/com/foodstock/<context>/domain/service/<Context>Service.kt`:
+
+```kotlin
+package com.foodstock.<context>.domain.service
+
+import com.foodstock.<context>.domain.port.`in`.Create<Entity>
+import com.foodstock.<context>.domain.port.out.<Entity>Repository
+import java.time.Clock
+
+class <Context>Service(
+    private val repository: <Entity>Repository,
+    private val clock: Clock
+) : Create<Entity> {
+    override fun execute(/* params */): <Entity> {
+        TODO("implement")
+    }
+}
+```
+
+Run: `./gradlew test --tests "*.<Context>ServiceTest"`
+Expected: PASS
+
+### 7. Implement the JPA entity
+
+Create `apps/api/src/main/kotlin/com/foodstock/<context>/adapter/out/<Entity>Entity.kt`:
+
+```kotlin
+package com.foodstock.<context>.adapter.out
+
+import com.foodstock.<context>.domain.model.<Entity>
+import jakarta.persistence.*
+import java.util.UUID
+
+@Entity
+@Table(name = "<table_name>")
+class <Entity>Entity(
+    @Id val id: UUID,
+    // add columns here with JPA annotations
+) {
+    fun toDomain(): <Entity> = <Entity>(
+        id = id,
+        // map columns to domain fields
+    )
+
+    companion object {
+        fun fromDomain(domain: <Entity>): <Entity>Entity = <Entity>Entity(
+            id = domain.id,
+            // map domain fields to columns
+        )
+    }
+}
+```
+
+### 8. Implement the Spring Data JPA repository
+
+Create `apps/api/src/main/kotlin/com/foodstock/<context>/adapter/out/<Entity>JpaRepository.kt`:
+
+```kotlin
+package com.foodstock.<context>.adapter.out
+
+import org.springframework.data.jpa.repository.JpaRepository
+import java.util.UUID
+
+interface <Entity>JpaRepository : JpaRepository<<Entity>Entity, UUID>
+```
+
+### 9. Implement the repository adapter
+
+Create `apps/api/src/main/kotlin/com/foodstock/<context>/adapter/out/<Entity>RepositoryAdapter.kt`:
+
+```kotlin
+package com.foodstock.<context>.adapter.out
+
+import com.foodstock.<context>.domain.model.<Entity>
+import com.foodstock.<context>.domain.port.out.<Entity>Repository
+import java.util.UUID
+
+class <Entity>RepositoryAdapter(
+    private val jpa: <Entity>JpaRepository
+) : <Entity>Repository {
+    override fun findById(id: UUID): <Entity>? =
+        jpa.findById(id).map { it.toDomain() }.orElse(null)
+
+    override fun save(entity: <Entity>): <Entity> =
+        jpa.save(<Entity>Entity.fromDomain(entity)).toDomain()
+}
+```
+
+### 10. Wire everything in the config
+
+Create `apps/api/src/main/kotlin/com/foodstock/<context>/config/<Context>Config.kt`:
+
+```kotlin
+package com.foodstock.<context>.config
+
+import com.foodstock.<context>.adapter.out.<Entity>JpaRepository
+import com.foodstock.<context>.adapter.out.<Entity>RepositoryAdapter
+import com.foodstock.<context>.domain.service.<Context>Service
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import java.time.Clock
+
+@Configuration
+class <Context>Config {
+    @Bean
+    fun <entity>Repository(jpa: <Entity>JpaRepository): <Entity>RepositoryAdapter =
+        <Entity>RepositoryAdapter(jpa)
+
+    @Bean
+    fun <context>Service(
+        repository: <Entity>RepositoryAdapter,
+        clock: Clock
+    ): <Context>Service = <Context>Service(repository, clock)
+}
+```
+
+### 11. Write the controller slice test (failing)
+
+Create `apps/api/src/test/kotlin/com/foodstock/<context>/adapter/in/<Context>ControllerTest.kt`:
+
+```kotlin
+package com.foodstock.<context>.adapter.`in`
+
+import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
+import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.post
+import org.springframework.http.MediaType
+
+@WebMvcTest(<Context>Controller::class)
+class <Context>ControllerTest {
+    @Autowired lateinit var mockMvc: MockMvc
+
+    @Test
+    fun `POST api <context> returns 200`() {
+        mockMvc.post("/api/<context>") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{}"""
+        }.andExpect { status { isOk() } }
+    }
+}
+```
+
+Run: `./gradlew test --tests "*.<Context>ControllerTest"`
+Expected: FAIL (class not found)
+
+### 12. Implement the controller
+
+Create `apps/api/src/main/kotlin/com/foodstock/<context>/adapter/in/<Context>Controller.kt`:
+
+```kotlin
+package com.foodstock.<context>.adapter.`in`
+
+import com.foodstock.<context>.domain.port.`in`.Create<Entity>
+import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.*
+
+data class Create<Entity>Request(/* request fields */)
+data class <Entity>Response(/* response fields */)
+
+@RestController
+@RequestMapping("/api/<context>")
+class <Context>Controller(
+    private val create<Entity>: Create<Entity>
+) {
+    @PostMapping
+    fun create(
+        @RequestBody request: Create<Entity>Request
+    ): ResponseEntity<<Entity>Response> {
+        val result = create<Entity>.execute(/* map from request */)
+        return ResponseEntity.ok(<Entity>Response(/* map from result */))
+    }
+}
+```
+
+Run: `./gradlew test --tests "*.<Context>ControllerTest"`
+Expected: PASS
+
+### 13. Run full test suite
+
+Run: `./gradlew test`
+Expected: BUILD SUCCESSFUL, no failures.
+
+### 14. Commit
+
+```bash
+git add apps/api/src/
+git commit -m "feat(<context>): add <context> bounded context scaffold"
+```
+
+## Verification
+
+- `./gradlew test` passes with no failures
+- Package tree exists under `com/foodstock/<context>/`
+- No Spring annotations (`@Service`, `@Component`) appear in `domain/`
+- No JPA or Spring imports appear in `domain/model/` or `domain/service/`
