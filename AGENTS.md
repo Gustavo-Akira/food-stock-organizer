@@ -30,3 +30,25 @@ Recent history follows Conventional Commits: `feat(ci): ...`, `fix(inventory): .
 ## Security & Configuration Tips
 
 Do not commit secrets, tokens, or local database credentials. Keep API configuration in Spring `application.yml` or environment variables, and prefer Docker Compose for local services instead of hard-coded connection details.
+
+## Workflows
+
+When executing a task, pick the matching workflow and follow it step by step.
+
+| Task | Workflow |
+|---|---|
+| Add a new domain (bounded context) | `docs/workflows/new-bounded-context.md` |
+| Add an endpoint to an existing context | `docs/workflows/new-api-endpoint.md` |
+| Add a web or mobile feature | `docs/workflows/new-frontend-feature.md` |
+| Change the database schema | `docs/workflows/database-schema-change.md` |
+
+## Hard Rules
+
+Violations of these rules break the hexagonal architecture or CI gate. Never do any of the following:
+
+- **Never** call `LocalDateTime.now()` or `Instant.now()` directly in domain service code. Accept `Clock` as a constructor parameter and call `clock.instant()`.
+- **Never** annotate a domain service class with `@Service`, `@Component`, `@Repository`, or any Spring stereotype. Wire it via `@Bean` in `{Context}Config.kt`.
+- **Never** import a JPA entity (`*Entity`) or a Spring Data repository (`*JpaRepository`) from domain layer packages (`domain/model/`, `domain/service/`, `domain/port/`).
+- **Never** modify an existing Flyway migration file (`V{N}__*.sql`). Always create a new versioned file.
+- **Never** push code without tests for new endpoints or domain service methods. CI enforces ≥ 80% diff coverage.
+- **Never** import from another feature folder on the frontend (`../otherFeature/`). Features are isolated.
