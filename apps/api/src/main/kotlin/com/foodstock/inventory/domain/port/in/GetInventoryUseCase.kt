@@ -5,5 +5,5 @@ import com.foodstock.inventory.domain.model.QuantityLevel
 import java.util.UUID
 
 interface GetInventoryUseCase {
-    fun getInventory(houseId: UUID, quantityLevel: QuantityLevel?): List<InventoryItem>
+    fun getInventory(houseId: UUID, quantityLevel: QuantityLevel?, userId: UUID): List<InventoryItem>
 }

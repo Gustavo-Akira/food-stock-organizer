@@ -8,6 +8,7 @@ import java.util.UUID
 
 data class AddItemCommand(
     val houseId: UUID,
+    val userId: UUID,
     val name: String,
     val category: Category,
     val quantityLevel: QuantityLevel,

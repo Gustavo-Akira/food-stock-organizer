@@ -1,5 +1,6 @@
 package com.foodstock.inventory.config
 
+import com.foodstock.inventory.adapter.out.HouseMemberCheckAdapter
 import com.foodstock.inventory.adapter.out.InventoryJpaRepository
 import com.foodstock.inventory.domain.service.InventoryService
 import org.springframework.context.annotation.Bean
@@ -9,11 +10,13 @@ import java.time.Clock
 @Configuration
 class InventoryConfig(
     private val inventoryJpaRepository: InventoryJpaRepository,
+    private val houseMemberCheckAdapter: HouseMemberCheckAdapter,
     private val clock: Clock
 ) {
     @Bean
     fun inventoryService(): InventoryService = InventoryService(
         inventoryRepository = inventoryJpaRepository,
+        houseMemberCheckPort = houseMemberCheckAdapter,
         clock = clock
     )
 }

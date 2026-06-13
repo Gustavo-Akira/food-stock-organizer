@@ -4,5 +4,5 @@ import com.foodstock.inventory.domain.model.InventoryItem
 import java.util.UUID
 
 interface GetInventoryItemUseCase {
-    fun getInventoryItem(itemId: UUID): InventoryItem
+    fun getInventoryItem(itemId: UUID, userId: UUID): InventoryItem
 }
