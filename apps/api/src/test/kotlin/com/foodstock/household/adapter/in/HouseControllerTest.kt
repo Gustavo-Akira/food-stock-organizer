@@ -1,6 +1,7 @@
 package com.foodstock.household.adapter.`in`
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.foodstock.auth.adapter.`in`.AuthenticatedUser
 import com.foodstock.household.adapter.`in`.dto.CreateHouseRequest
 import com.foodstock.household.adapter.`in`.dto.InviteMemberRequest
 import com.foodstock.household.domain.exception.HouseNotFoundException
@@ -17,6 +18,7 @@ import com.foodstock.household.domain.port.`in`.GetMyHousesUseCase
 import com.foodstock.household.domain.port.`in`.InvitationAction
 import com.foodstock.household.domain.port.`in`.InviteMemberUseCase
 import com.foodstock.household.domain.port.`in`.RespondToInvitationUseCase
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
@@ -25,10 +27,14 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.http.MediaType
+import org.springframework.mock.web.MockHttpServletRequest
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
+import org.springframework.test.web.servlet.request.RequestPostProcessor
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -60,6 +66,20 @@ class HouseControllerTest {
     @MockBean
     private lateinit var getHouseMembersUseCase: GetHouseMembersUseCase
 
+    @AfterEach
+    fun clearSecurityContext() {
+        SecurityContextHolder.clearContext()
+    }
+
+    private fun principal(userId: UUID) = RequestPostProcessor { request: MockHttpServletRequest ->
+        val context = SecurityContextHolder.createEmptyContext()
+        context.authentication = UsernamePasswordAuthenticationToken(
+            AuthenticatedUser(userId = userId, email = "user@test.com"), null, emptyList()
+        )
+        SecurityContextHolder.setContext(context)
+        request
+    }
+
     @Test
     fun `createHouse returns created house`() {
         val houseId = UUID.fromString("33333333-3333-3333-3333-333333333333")
@@ -70,8 +90,8 @@ class HouseControllerTest {
         )
 
         mockMvc.post("/api/v1/houses") {
+            with(principal(ownerId))
             contentType = MediaType.APPLICATION_JSON
-            header("X-User-Id", ownerId.toString())
             content = objectMapper.writeValueAsString(CreateHouseRequest(name = "Casa"))
         }
             .andExpect {
@@ -90,18 +110,15 @@ class HouseControllerTest {
         val invitedByUserId = UUID.fromString("88888888-8888-8888-8888-888888888888")
         whenever(inviteMemberUseCase.inviteMember(any())).thenReturn(
             HouseMember(
-                id = memberId,
-                houseId = houseId,
-                userId = invitedUserId,
-                role = MemberRole.MEMBER,
-                status = MemberStatus.PENDING,
+                id = memberId, houseId = houseId, userId = invitedUserId,
+                role = MemberRole.MEMBER, status = MemberStatus.PENDING,
                 createdAt = LocalDateTime.parse("2026-06-05T12:00:00")
             )
         )
 
         mockMvc.post("/api/v1/houses/$houseId/members") {
+            with(principal(invitedByUserId))
             contentType = MediaType.APPLICATION_JSON
-            header("X-User-Id", invitedByUserId.toString())
             content = objectMapper.writeValueAsString(InviteMemberRequest(userId = invitedUserId))
         }
             .andExpect {
@@ -110,17 +127,6 @@ class HouseControllerTest {
                 jsonPath("$.houseId") { value(houseId.toString()) }
                 jsonPath("$.userId") { value(invitedUserId.toString()) }
                 jsonPath("$.status") { value("PENDING") }
-            }
-    }
-
-    @Test
-    fun `createHouse rejects missing user header`() {
-        mockMvc.post("/api/v1/houses") {
-            contentType = MediaType.APPLICATION_JSON
-            content = objectMapper.writeValueAsString(CreateHouseRequest(name = "Casa"))
-        }
-            .andExpect {
-                status { isBadRequest() }
             }
     }
 
@@ -135,8 +141,8 @@ class HouseControllerTest {
         )
 
         mockMvc.patch("/api/v1/houses/$houseId/members/$memberId") {
+            with(principal(userId))
             contentType = MediaType.APPLICATION_JSON
-            header("X-User-Id", userId.toString())
             content = objectMapper.writeValueAsString(RespondToInvitationRequest(action = InvitationAction.ACCEPT))
         }
             .andExpect {
@@ -155,23 +161,9 @@ class HouseControllerTest {
         val userId = UUID.fromString("33333333-3333-3333-3333-333333333333")
 
         mockMvc.patch("/api/v1/houses/$houseId/members/$memberId") {
+            with(principal(userId))
             contentType = MediaType.APPLICATION_JSON
-            header("X-User-Id", userId.toString())
             content = "{}"
-        }
-            .andExpect {
-                status { isBadRequest() }
-            }
-    }
-
-    @Test
-    fun `respondToInvitation returns 400 when X-User-Id header is missing`() {
-        val houseId = UUID.fromString("22222222-2222-2222-2222-222222222222")
-        val memberId = UUID.fromString("11111111-1111-1111-1111-111111111111")
-
-        mockMvc.patch("/api/v1/houses/$houseId/members/$memberId") {
-            contentType = MediaType.APPLICATION_JSON
-            content = objectMapper.writeValueAsString(RespondToInvitationRequest(action = InvitationAction.ACCEPT))
         }
             .andExpect {
                 status { isBadRequest() }
@@ -187,8 +179,8 @@ class HouseControllerTest {
             .thenThrow(UnauthorizedMemberOperationException("Only the house owner can invite members"))
 
         mockMvc.post("/api/v1/houses/$houseId/members") {
+            with(principal(nonOwnerId))
             contentType = MediaType.APPLICATION_JSON
-            header("X-User-Id", nonOwnerId.toString())
             content = objectMapper.writeValueAsString(InviteMemberRequest(userId = invitedUserId))
         }
             .andExpect {
@@ -206,8 +198,8 @@ class HouseControllerTest {
             .thenThrow(UnauthorizedMemberOperationException("Only the invited user can accept or reject an invitation"))
 
         mockMvc.patch("/api/v1/houses/$houseId/members/$memberId") {
+            with(principal(wrongUserId))
             contentType = MediaType.APPLICATION_JSON
-            header("X-User-Id", wrongUserId.toString())
             content = objectMapper.writeValueAsString(RespondToInvitationRequest(action = InvitationAction.ACCEPT))
         }
             .andExpect {
@@ -226,7 +218,7 @@ class HouseControllerTest {
         )
 
         mockMvc.get("/api/v1/houses") {
-            header("X-User-Id", userId.toString())
+            with(principal(userId))
         }
             .andExpect {
                 status { isOk() }
@@ -234,12 +226,6 @@ class HouseControllerTest {
                 jsonPath("$[0].name") { value("Casa") }
                 jsonPath("$[0].ownerId") { value(userId.toString()) }
             }
-    }
-
-    @Test
-    fun `getMyHouses returns 400 when X-User-Id header is missing`() {
-        mockMvc.get("/api/v1/houses")
-            .andExpect { status { isBadRequest() } }
     }
 
     @Test
@@ -252,7 +238,7 @@ class HouseControllerTest {
         )
 
         mockMvc.get("/api/v1/houses/$houseId") {
-            header("X-User-Id", userId.toString())
+            with(principal(userId))
         }
             .andExpect {
                 status { isOk() }
@@ -269,7 +255,7 @@ class HouseControllerTest {
         whenever(getHouseUseCase.getHouse(houseId, userId)).thenThrow(HouseNotFoundException(houseId))
 
         mockMvc.get("/api/v1/houses/$houseId") {
-            header("X-User-Id", userId.toString())
+            with(principal(userId))
         }
             .andExpect { status { isNotFound() } }
     }
@@ -282,7 +268,7 @@ class HouseControllerTest {
             .thenThrow(UnauthorizedMemberOperationException("Only active house members can view this resource"))
 
         mockMvc.get("/api/v1/houses/$houseId") {
-            header("X-User-Id", userId.toString())
+            with(principal(userId))
         }
             .andExpect {
                 status { isForbidden() }
@@ -301,7 +287,7 @@ class HouseControllerTest {
         )
 
         mockMvc.get("/api/v1/houses/$houseId/members") {
-            header("X-User-Id", userId.toString())
+            with(principal(userId))
         }
             .andExpect {
                 status { isOk() }
@@ -319,7 +305,7 @@ class HouseControllerTest {
         whenever(getHouseMembersUseCase.getHouseMembers(houseId, userId)).thenThrow(HouseNotFoundException(houseId))
 
         mockMvc.get("/api/v1/houses/$houseId/members") {
-            header("X-User-Id", userId.toString())
+            with(principal(userId))
         }
             .andExpect { status { isNotFound() } }
     }
@@ -332,7 +318,7 @@ class HouseControllerTest {
             .thenThrow(UnauthorizedMemberOperationException("Only active house members can view this resource"))
 
         mockMvc.get("/api/v1/houses/$houseId/members") {
-            header("X-User-Id", userId.toString())
+            with(principal(userId))
         }
             .andExpect { status { isForbidden() } }
     }
