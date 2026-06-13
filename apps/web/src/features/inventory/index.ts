@@ -1,4 +1,5 @@
 export { InventoryList } from './components/InventoryList'
-export { useInventory, useUpdateQuantity } from './hooks/useInventory'
+export { AddItemModal } from './components/AddItemModal'
+export { useInventory, useUpdateQuantity, useAddItem } from './hooks/useInventory'
 export { inventoryApi } from './api/inventoryApi'
-export type { InventoryItem, QuantityLevel, Category } from './types'
+export type { InventoryItem, InventoryItemInput, QuantityLevel, Category } from './types'
