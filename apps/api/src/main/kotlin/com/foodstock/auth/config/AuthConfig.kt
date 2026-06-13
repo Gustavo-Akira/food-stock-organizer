@@ -1,5 +1,6 @@
 package com.foodstock.auth.config
 
+import com.foodstock.auth.adapter.`in`.JwtAuthenticationFilter
 import com.foodstock.auth.adapter.out.BcryptPasswordHashAdapter
 import com.foodstock.auth.adapter.out.JwtAdapter
 import com.foodstock.auth.adapter.out.UserJpaRepository
@@ -19,4 +20,7 @@ class AuthConfig(
         passwordHashPort = passwordHashAdapter,
         jwtPort = jwtAdapter
     )
+
+    @Bean
+    fun jwtAuthenticationFilter(): JwtAuthenticationFilter = JwtAuthenticationFilter(jwtAdapter)
 }
