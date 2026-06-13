@@ -1,6 +1,7 @@
 package com.foodstock.auth.domain.port.out
 
 import com.foodstock.auth.domain.model.User
+import java.util.UUID
 
 interface PasswordHashPort {
     fun hash(raw: String): String
@@ -11,4 +12,5 @@ interface JwtPort {
     fun generateToken(user: User): String
     fun validateToken(token: String): Boolean
     fun extractEmail(token: String): String
+    fun extractUserId(token: String): UUID
 }
