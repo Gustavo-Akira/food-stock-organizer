@@ -1,5 +1,6 @@
 package com.foodstock.inventory.adapter.`in`
 
+import com.foodstock.auth.adapter.`in`.AuthenticatedUser
 import com.foodstock.inventory.adapter.`in`.dto.AddItemRequest
 import com.foodstock.inventory.adapter.`in`.dto.InventoryItemResponse
 import com.foodstock.inventory.adapter.`in`.dto.UpdateQuantityRequest
@@ -13,6 +14,7 @@ import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityCommand
 import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityUseCase
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
+import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -38,13 +40,13 @@ class InventoryController(
     @ResponseStatus(HttpStatus.CREATED)
     fun addItem(
         @Valid @RequestBody request: AddItemRequest,
-        // TODO: replace with houseId extracted from JWT claims once @AuthenticationPrincipal is wired;
-        //  authentication is enforced (SecurityConfig.anyRequest().authenticated()) but ownership is not yet verified
-        @RequestHeader("X-House-Id") houseId: UUID
+        @RequestHeader("X-House-Id") houseId: UUID,
+        @AuthenticationPrincipal user: AuthenticatedUser
     ): InventoryItemResponse {
         val item = addItemUseCase.addItem(
             AddItemCommand(
                 houseId = houseId,
+                userId = user.userId,
                 name = request.name.trim(),
                 category = request.category,
                 quantityLevel = request.quantityLevel,
@@ -58,21 +60,26 @@ class InventoryController(
     @PatchMapping("/{itemId}/quantity")
     fun updateQuantity(
         @PathVariable itemId: UUID,
-        @Valid @RequestBody request: UpdateQuantityRequest
+        @Valid @RequestBody request: UpdateQuantityRequest,
+        @AuthenticationPrincipal user: AuthenticatedUser
     ): InventoryItemResponse {
         return updateItemQuantityUseCase.updateQuantity(
-            UpdateItemQuantityCommand(itemId = itemId, quantityLevel = request.quantityLevel)
+            UpdateItemQuantityCommand(itemId = itemId, quantityLevel = request.quantityLevel, userId = user.userId)
         ).toResponse()
     }
 
     @GetMapping
     fun getInventory(
         @RequestHeader("X-House-Id") houseId: UUID,
-        @RequestParam(required = false) quantityLevel: QuantityLevel?
+        @RequestParam(required = false) quantityLevel: QuantityLevel?,
+        @AuthenticationPrincipal user: AuthenticatedUser
     ): List<InventoryItemResponse> =
-        getInventoryUseCase.getInventory(houseId, quantityLevel).map { it.toResponse() }
+        getInventoryUseCase.getInventory(houseId, quantityLevel, user.userId).map { it.toResponse() }
 
     @GetMapping("/{itemId}")
-    fun getInventoryItem(@PathVariable itemId: UUID): InventoryItemResponse =
-        getInventoryItemUseCase.getInventoryItem(itemId).toResponse()
+    fun getInventoryItem(
+        @PathVariable itemId: UUID,
+        @AuthenticationPrincipal user: AuthenticatedUser
+    ): InventoryItemResponse =
+        getInventoryItemUseCase.getInventoryItem(itemId, user.userId).toResponse()
 }
