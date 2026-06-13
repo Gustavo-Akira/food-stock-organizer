@@ -16,7 +16,7 @@ const FormSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório').max(255),
   category: z.enum(['FOOD', 'CLEANING', 'HYGIENE', 'OTHER'] as const),
   quantityLevel: z.enum(['RUNNING_OUT', 'ENOUGH', 'PLENTY'] as const),
-  expiryDate: z.string().optional(),
+  expiryDate: z.string().date('Data de validade inválida').optional(),
   notes: z.string().max(1000).optional(),
 })
 
