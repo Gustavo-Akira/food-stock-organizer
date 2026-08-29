@@ -4,9 +4,13 @@ import com.foodstock.shopping.adapter.out.InventoryRestockAdapter
 import com.foodstock.shopping.adapter.out.InventoryRunningOutAdapter
 import com.foodstock.shopping.adapter.out.MemberRoleAdapter
 import com.foodstock.shopping.adapter.out.ShoppingListJpaRepository
+import com.foodstock.shopping.adapter.`in`.TransactionalCompleteShoppingUseCase
+import com.foodstock.shopping.domain.port.`in`.CompleteShoppingUseCase
 import com.foodstock.shopping.domain.service.ShoppingListService
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Primary
+import org.springframework.transaction.support.TransactionOperations
 import java.time.Clock
 
 @Configuration
@@ -24,5 +28,15 @@ class ShoppingConfig(
         memberRolePort = memberRoleAdapter,
         restockItemsPort = inventoryRestockAdapter,
         clock = clock
+    )
+
+    @Bean
+    @Primary
+    fun completeShoppingUseCase(
+        shoppingListService: ShoppingListService,
+        transactionOperations: TransactionOperations
+    ): CompleteShoppingUseCase = TransactionalCompleteShoppingUseCase(
+        delegate = shoppingListService,
+        transactionOperations = transactionOperations
     )
 }

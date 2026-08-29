@@ -29,7 +29,6 @@ import com.foodstock.shopping.domain.port.out.RestockItemsPort
 import com.foodstock.shopping.domain.port.out.RunningOutItemsQueryPort
 import com.foodstock.shopping.domain.port.out.ShoppingListRepository
 import jakarta.persistence.OptimisticLockException
-import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.LocalDateTime
 import java.util.UUID
@@ -83,7 +82,6 @@ class ShoppingListService(
         return shoppingListRepository.update(list.copy(status = ShoppingListStatus.SHOPPING, updatedAt = LocalDateTime.now(clock)))
     }
 
-    @Transactional
     override fun complete(command: CompleteShoppingCommand): ShoppingList {
         val list = shoppingListRepository.findById(command.listId) ?: throw ShoppingListNotFoundException(command.listId)
         assertVersion(list.version, command.listVersion)
