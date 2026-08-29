@@ -1,5 +1,6 @@
 package com.foodstock.inventory.domain.service
 
+import com.foodstock.inventory.domain.exception.HouseAccessDeniedException
 import com.foodstock.inventory.domain.exception.ItemNotFoundException
 import com.foodstock.inventory.domain.model.InventoryItem
 import com.foodstock.inventory.domain.model.QuantityLevel
@@ -9,6 +10,7 @@ import com.foodstock.inventory.domain.port.`in`.GetInventoryItemUseCase
 import com.foodstock.inventory.domain.port.`in`.GetInventoryUseCase
 import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityCommand
 import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityUseCase
+import com.foodstock.inventory.domain.port.out.HouseMemberCheckPort
 import com.foodstock.inventory.domain.port.out.InventoryRepository
 import java.time.Clock
 import java.time.LocalDateTime
@@ -16,10 +18,12 @@ import java.util.UUID
 
 class InventoryService(
     private val inventoryRepository: InventoryRepository,
+    private val houseMemberCheckPort: HouseMemberCheckPort,
     private val clock: Clock
 ) : AddItemUseCase, UpdateItemQuantityUseCase, GetInventoryUseCase, GetInventoryItemUseCase {
 
     override fun addItem(command: AddItemCommand): InventoryItem {
+        checkMembership(command.houseId, command.userId)
         val now = LocalDateTime.now(clock)
         val item = InventoryItem(
             id = UUID.randomUUID(),
@@ -38,6 +42,7 @@ class InventoryService(
     override fun updateQuantity(command: UpdateItemQuantityCommand): InventoryItem {
         val item = inventoryRepository.findById(command.itemId)
             ?: throw ItemNotFoundException(command.itemId)
+        checkMembership(item.houseId, command.userId)
         val updated = item.copy(
             quantityLevel = command.quantityLevel,
             updatedAt = LocalDateTime.now(clock)
@@ -45,12 +50,23 @@ class InventoryService(
         return inventoryRepository.save(updated)
     }
 
-    override fun getInventory(houseId: UUID, quantityLevel: QuantityLevel?): List<InventoryItem> =
-        if (quantityLevel != null)
+    override fun getInventory(houseId: UUID, quantityLevel: QuantityLevel?, userId: UUID): List<InventoryItem> {
+        checkMembership(houseId, userId)
+        return if (quantityLevel != null)
             inventoryRepository.findAllByHouseIdAndQuantityLevel(houseId, quantityLevel)
         else
             inventoryRepository.findAllByHouseId(houseId)
+    }
 
-    override fun getInventoryItem(itemId: UUID): InventoryItem =
-        inventoryRepository.findById(itemId) ?: throw ItemNotFoundException(itemId)
+    override fun getInventoryItem(itemId: UUID, userId: UUID): InventoryItem {
+        val item = inventoryRepository.findById(itemId) ?: throw ItemNotFoundException(itemId)
+        checkMembership(item.houseId, userId)
+        return item
+    }
+
+    private fun checkMembership(houseId: UUID, userId: UUID) {
+        if (!houseMemberCheckPort.isActiveMember(houseId, userId)) {
+            throw HouseAccessDeniedException(houseId)
+        }
+    }
 }

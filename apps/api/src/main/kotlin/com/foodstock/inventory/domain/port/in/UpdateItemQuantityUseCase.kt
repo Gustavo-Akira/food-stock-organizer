@@ -6,7 +6,8 @@ import java.util.UUID
 
 data class UpdateItemQuantityCommand(
     val itemId: UUID,
-    val quantityLevel: QuantityLevel
+    val quantityLevel: QuantityLevel,
+    val userId: UUID
 )
 
 interface UpdateItemQuantityUseCase {

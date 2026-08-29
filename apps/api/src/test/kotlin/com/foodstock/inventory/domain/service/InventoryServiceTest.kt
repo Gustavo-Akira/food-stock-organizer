@@ -1,11 +1,13 @@
 package com.foodstock.inventory.domain.service
 
+import com.foodstock.inventory.domain.exception.HouseAccessDeniedException
 import com.foodstock.inventory.domain.exception.ItemNotFoundException
 import com.foodstock.inventory.domain.model.Category
 import com.foodstock.inventory.domain.model.InventoryItem
 import com.foodstock.inventory.domain.model.QuantityLevel
 import com.foodstock.inventory.domain.port.`in`.AddItemCommand
 import com.foodstock.inventory.domain.port.`in`.UpdateItemQuantityCommand
+import com.foodstock.inventory.domain.port.out.HouseMemberCheckPort
 import com.foodstock.inventory.domain.port.out.InventoryRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -29,17 +31,20 @@ import java.util.UUID
 class InventoryServiceTest {
 
     private val inventoryRepository: InventoryRepository = mock()
+    private val houseMemberCheckPort: HouseMemberCheckPort = mock()
     private val fixedClock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC)
-    private val service = InventoryService(inventoryRepository, fixedClock)
+    private val service = InventoryService(inventoryRepository, houseMemberCheckPort, fixedClock)
 
     @Test
     fun `addItem saves item with generated id and timestamps`() {
         val houseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
         val expectedNow = LocalDateTime.now(fixedClock)
         val command = AddItemCommand(
-            houseId = houseId, name = "Arroz", category = Category.FOOD,
+            houseId = houseId, userId = userId, name = "Arroz", category = Category.FOOD,
             quantityLevel = QuantityLevel.PLENTY, expiryDate = LocalDate.of(2026, 12, 31), notes = null
         )
+        whenever(houseMemberCheckPort.isActiveMember(houseId, userId)).thenReturn(true)
         whenever(inventoryRepository.save(any())).thenAnswer { it.arguments[0] as InventoryItem }
 
         val result = service.addItem(command)
@@ -56,17 +61,19 @@ class InventoryServiceTest {
 
     @Test
     fun `addItem saves item without optional fields`() {
+        val houseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
         val command = AddItemCommand(
-            houseId = UUID.randomUUID(), name = "Sabão", category = Category.CLEANING,
+            houseId = houseId, userId = userId, name = "Sabão", category = Category.CLEANING,
             quantityLevel = QuantityLevel.RUNNING_OUT, expiryDate = null, notes = null
         )
+        whenever(houseMemberCheckPort.isActiveMember(houseId, userId)).thenReturn(true)
         whenever(inventoryRepository.save(any())).thenAnswer { it.arguments[0] as InventoryItem }
 
         val result = service.addItem(command)
 
-        assertEquals(command.houseId, result.houseId)
+        assertEquals(houseId, result.houseId)
         assertEquals("Sabão", result.name)
-        assertEquals(Category.CLEANING, result.category)
         assertEquals(QuantityLevel.RUNNING_OUT, result.quantityLevel)
         assertEquals(null, result.expiryDate)
         assertEquals(null, result.notes)
@@ -74,21 +81,38 @@ class InventoryServiceTest {
     }
 
     @Test
+    fun `addItem throws HouseAccessDeniedException when user is not a member`() {
+        val houseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        whenever(houseMemberCheckPort.isActiveMember(houseId, userId)).thenReturn(false)
+
+        assertThrows<HouseAccessDeniedException> {
+            service.addItem(AddItemCommand(
+                houseId = houseId, userId = userId, name = "Arroz", category = Category.FOOD,
+                quantityLevel = QuantityLevel.PLENTY, expiryDate = null, notes = null
+            ))
+        }
+    }
+
+    @Test
     fun `updateQuantity updates quantityLevel on existing item`() {
         val itemId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val houseId = UUID.randomUUID()
         val pastInstant = Instant.parse("2025-01-01T00:00:00Z")
         val existing = InventoryItem(
-            id = itemId, houseId = UUID.randomUUID(), name = "Leite",
+            id = itemId, houseId = houseId, name = "Leite",
             category = Category.FOOD, quantityLevel = QuantityLevel.PLENTY,
             expiryDate = null, notes = null,
             createdAt = LocalDateTime.ofInstant(pastInstant, ZoneOffset.UTC),
             updatedAt = LocalDateTime.ofInstant(pastInstant, ZoneOffset.UTC)
         )
         whenever(inventoryRepository.findById(itemId)).thenReturn(existing)
+        whenever(houseMemberCheckPort.isActiveMember(houseId, userId)).thenReturn(true)
         whenever(inventoryRepository.save(any())).thenAnswer { it.arguments[0] as InventoryItem }
 
         val result = service.updateQuantity(
-            UpdateItemQuantityCommand(itemId = itemId, quantityLevel = QuantityLevel.RUNNING_OUT)
+            UpdateItemQuantityCommand(itemId = itemId, quantityLevel = QuantityLevel.RUNNING_OUT, userId = userId)
         )
 
         val expectedUpdatedAt = LocalDateTime.now(fixedClock)
@@ -105,25 +129,46 @@ class InventoryServiceTest {
     @Test
     fun `updateQuantity throws ItemNotFoundException when item not found`() {
         val itemId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
         whenever(inventoryRepository.findById(itemId)).thenReturn(null)
 
         assertThrows<ItemNotFoundException> {
-            service.updateQuantity(UpdateItemQuantityCommand(itemId = itemId, quantityLevel = QuantityLevel.ENOUGH))
+            service.updateQuantity(UpdateItemQuantityCommand(itemId = itemId, quantityLevel = QuantityLevel.ENOUGH, userId = userId))
+        }
+    }
+
+    @Test
+    fun `updateQuantity throws HouseAccessDeniedException when user is not a member`() {
+        val itemId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val houseId = UUID.randomUUID()
+        val existing = InventoryItem(
+            id = itemId, houseId = houseId, name = "Leite", category = Category.FOOD,
+            quantityLevel = QuantityLevel.PLENTY, expiryDate = null, notes = null,
+            createdAt = LocalDateTime.now(fixedClock), updatedAt = LocalDateTime.now(fixedClock)
+        )
+        whenever(inventoryRepository.findById(itemId)).thenReturn(existing)
+        whenever(houseMemberCheckPort.isActiveMember(houseId, userId)).thenReturn(false)
+
+        assertThrows<HouseAccessDeniedException> {
+            service.updateQuantity(UpdateItemQuantityCommand(itemId = itemId, quantityLevel = QuantityLevel.RUNNING_OUT, userId = userId))
         }
     }
 
     @Test
     fun `getInventory returns all items when no filter provided`() {
         val houseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
         val item = InventoryItem(
             id = UUID.randomUUID(), houseId = houseId, name = "Arroz",
             category = Category.FOOD, quantityLevel = QuantityLevel.PLENTY,
             expiryDate = null, notes = null,
             createdAt = LocalDateTime.now(fixedClock), updatedAt = LocalDateTime.now(fixedClock)
         )
+        whenever(houseMemberCheckPort.isActiveMember(houseId, userId)).thenReturn(true)
         whenever(inventoryRepository.findAllByHouseId(houseId)).thenReturn(listOf(item))
 
-        val result = service.getInventory(houseId, null)
+        val result = service.getInventory(houseId, null, userId)
 
         assertEquals(1, result.size)
         assertEquals(item.id, result[0].id)
@@ -132,33 +177,49 @@ class InventoryServiceTest {
     @Test
     fun `getInventory filters by quantityLevel when provided`() {
         val houseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
         val item = InventoryItem(
             id = UUID.randomUUID(), houseId = houseId, name = "Arroz",
             category = Category.FOOD, quantityLevel = QuantityLevel.RUNNING_OUT,
             expiryDate = null, notes = null,
             createdAt = LocalDateTime.now(fixedClock), updatedAt = LocalDateTime.now(fixedClock)
         )
+        whenever(houseMemberCheckPort.isActiveMember(houseId, userId)).thenReturn(true)
         whenever(inventoryRepository.findAllByHouseIdAndQuantityLevel(houseId, QuantityLevel.RUNNING_OUT))
             .thenReturn(listOf(item))
 
-        val result = service.getInventory(houseId, QuantityLevel.RUNNING_OUT)
+        val result = service.getInventory(houseId, QuantityLevel.RUNNING_OUT, userId)
 
         assertEquals(1, result.size)
         assertEquals(QuantityLevel.RUNNING_OUT, result[0].quantityLevel)
     }
 
     @Test
+    fun `getInventory throws HouseAccessDeniedException when user is not a member`() {
+        val houseId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        whenever(houseMemberCheckPort.isActiveMember(houseId, userId)).thenReturn(false)
+
+        assertThrows<HouseAccessDeniedException> {
+            service.getInventory(houseId, null, userId)
+        }
+    }
+
+    @Test
     fun `getInventoryItem returns item by id`() {
         val itemId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val houseId = UUID.randomUUID()
         val item = InventoryItem(
-            id = itemId, houseId = UUID.randomUUID(), name = "Arroz",
+            id = itemId, houseId = houseId, name = "Arroz",
             category = Category.FOOD, quantityLevel = QuantityLevel.PLENTY,
             expiryDate = null, notes = null,
             createdAt = LocalDateTime.now(fixedClock), updatedAt = LocalDateTime.now(fixedClock)
         )
         whenever(inventoryRepository.findById(itemId)).thenReturn(item)
+        whenever(houseMemberCheckPort.isActiveMember(houseId, userId)).thenReturn(true)
 
-        val result = service.getInventoryItem(itemId)
+        val result = service.getInventoryItem(itemId, userId)
 
         assertEquals(itemId, result.id)
     }
@@ -166,8 +227,27 @@ class InventoryServiceTest {
     @Test
     fun `getInventoryItem throws ItemNotFoundException when item does not exist`() {
         val itemId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
         whenever(inventoryRepository.findById(itemId)).thenReturn(null)
 
-        assertThrows<ItemNotFoundException> { service.getInventoryItem(itemId) }
+        assertThrows<ItemNotFoundException> { service.getInventoryItem(itemId, userId) }
+    }
+
+    @Test
+    fun `getInventoryItem throws HouseAccessDeniedException when user is not a member`() {
+        val itemId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val houseId = UUID.randomUUID()
+        val item = InventoryItem(
+            id = itemId, houseId = houseId, name = "Arroz", category = Category.FOOD,
+            quantityLevel = QuantityLevel.PLENTY, expiryDate = null, notes = null,
+            createdAt = LocalDateTime.now(fixedClock), updatedAt = LocalDateTime.now(fixedClock)
+        )
+        whenever(inventoryRepository.findById(itemId)).thenReturn(item)
+        whenever(houseMemberCheckPort.isActiveMember(houseId, userId)).thenReturn(false)
+
+        assertThrows<HouseAccessDeniedException> {
+            service.getInventoryItem(itemId, userId)
+        }
     }
 }

@@ -7,6 +7,7 @@ import io.jsonwebtoken.security.Keys
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import java.util.Date
+import java.util.UUID
 
 @Component
 class JwtAdapter(
@@ -33,4 +34,10 @@ class JwtAdapter(
     override fun extractEmail(token: String): String =
         Jwts.parser().verifyWith(key).build()
             .parseSignedClaims(token).payload.subject
+
+    override fun extractUserId(token: String): UUID =
+        UUID.fromString(
+            Jwts.parser().verifyWith(key).build()
+                .parseSignedClaims(token).payload["userId"] as String
+        )
 }
