@@ -22,6 +22,7 @@ import com.foodstock.shopping.domain.port.out.RunningOutItemsQueryPort
 import com.foodstock.shopping.domain.port.out.ShoppingListRepository
 import jakarta.persistence.OptimisticLockException
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -33,6 +34,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDateTime
@@ -52,6 +54,18 @@ class ShoppingListServiceTest {
     )
 
     // --- Existing tests ---
+
+    @Test
+    fun `domain service methods are not annotated with Spring transaction annotations`() {
+        val transactionalMethods = ShoppingListService::class.java.declaredMethods
+            .filter { it.isAnnotationPresent(Transactional::class.java) }
+            .map { it.name }
+
+        assertFalse(
+            transactionalMethods.isNotEmpty(),
+            "Domain service methods must not depend on Spring @Transactional: $transactionalMethods"
+        )
+    }
 
     @Test
     fun `generateFromRunningOutItems saves list and one item per running-out item`() {
